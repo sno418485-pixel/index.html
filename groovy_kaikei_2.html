@@ -817,8 +817,8 @@ select.form-input{-webkit-appearance:none;appearance:none;}
 // ══════════════════════════════════════════════════════
 // SUPABASE CONFIG
 // ══════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://ndxbssyqahlxmxwhypwz.supabase.co/rest/v1/';
-const SUPABASE_ANON_KEY = 'sb_publishable_JrOYtWpepMMvAGXYmOM6kg_8KaL7pu_';
+const SUPABASE_URL = 'https://ndxbssyqahlxmxwhypwz.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5keGJzc3lxYWhseG14d2h5cHd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5Nzk0OTYsImV4cCI6MjA5MjU1NTQ5Nn0.ka1W5x0lNnpfhfFDpsYE3BdTyTOwU13XRaBgw1jn5ok';
 
 // ══════════════════════════════════════════════════════
 // LINE NOTIFY CONFIG
@@ -916,6 +916,8 @@ async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-pass').value;
   if (!email||!pass) { showToast('メールとパスワードを入力してください',true); return; }
+  const btn = document.querySelector('#auth-login-panel .submit-btn');
+  btn.textContent = 'ログイン中...'; btn.disabled = true;
   try {
     const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method:'POST',
@@ -923,9 +925,12 @@ async function doLogin() {
       body: JSON.stringify({email, password: pass})
     });
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error_description || data.msg || 'ログイン失敗');
+    if (!r.ok) throw new Error(data.error_description || data.error || 'ログインに失敗しました');
     await onLoginSuccess(data);
-  } catch(e) { showToast(e.message, true); }
+  } catch(e) {
+    showToast(e.message, true);
+    btn.textContent = 'ログイン'; btn.disabled = false;
+  }
 }
 
 async function doSignup() {
@@ -937,6 +942,8 @@ async function doSignup() {
   const pass = document.getElementById('signup-pass').value;
   if (!name||!email||!pass) { showToast('全項目を入力してください',true); return; }
   if (pass.length < 6) { showToast('パスワードは6文字以上です',true); return; }
+  const btn = document.querySelector('#auth-signup-panel .submit-btn');
+  btn.textContent = '登録中...'; btn.disabled = true;
   try {
     const r = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
       method:'POST',
@@ -944,24 +951,30 @@ async function doSignup() {
       body: JSON.stringify({email, password: pass})
     });
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error_description || data.msg || '登録失敗');
+    if (!r.ok) throw new Error(data.error_description || data.error || '登録に失敗しました');
     if (data.access_token) {
       // update profile with name and part
       await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${data.user.id}`, {
         method:'PATCH',
-        headers:{...getHeaders(data.access_token)},
+        headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+data.access_token,'Prefer':'return=representation'},
         body: JSON.stringify({name, part})
       });
       await onLoginSuccess(data);
     } else {
-      showToast('確認メールを送信しました。メールを確認してください。');
+      showToast('確認メールを送信しました。受信トレイをご確認ください。');
+      btn.textContent = '登録する'; btn.disabled = false;
     }
-  } catch(e) { showToast(e.message, true); }
+  } catch(e) {
+    showToast(e.message, true);
+    btn.textContent = '登録する'; btn.disabled = false;
+  }
 }
 
 async function onLoginSuccess(data) {
   accessToken = data.access_token;
   currentUser = data.user;
+  // Save token for session restore
+  if (accessToken) localStorage.setItem('sb_token', accessToken);
   // fetch profile
   const profiles = await dbGet('profiles', `id=eq.${currentUser.id}`, accessToken);
   currentProfile = profiles[0] || { role: 'member', name: currentUser.email };
@@ -980,10 +993,12 @@ async function doLogout() {
       method:'POST', headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+accessToken}
     });
   } catch(e) {}
+  localStorage.removeItem('sb_token');
   currentUser = null; currentProfile = null; accessToken = null;
   buhi=[]; repairHistory=[]; extraPlayers=[]; otherHistory=[]; monthlySnapshots=[]; eventCollections=[];
+  // Reset all screens, show auth
+  document.querySelectorAll('.screen').forEach(s=>{ s.classList.remove('active'); s.style.display='none'; });
   document.getElementById('auth-overlay').classList.remove('hidden');
-  go('home');
 }
 
 // パート「その他」選択時に入力欄表示
@@ -1027,16 +1042,19 @@ function go(id) {
   if (el) {
     el.style.display = 'block';
     el.classList.add('active');
-    el.scrollTop = 0;
+    setTimeout(() => { el.scrollTop = 0; }, 0);
   }
   // 画面ごとの初期化
+  if (id === 'home') renderHome();
   if (id === 'buhi') switchBuhiTab('collect');
   if (id === 'extra') { renderCalendar(); renderExtraPlayers(); }
+  if (id === 'repair') {
+    document.getElementById('repair-admin-btn').style.display = isAdmin() ? 'block' : 'none';
+  }
   if (id === 'repair-admin') renderRepairAdmin();
   if (id === 'repair-history') renderRepairUsage();
   if (id === 'other') renderOtherHistory();
   if (id === 'event') renderEventList();
-  if (id === 'home') renderHome();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1828,14 +1846,7 @@ function showToast(msg, isError=false) {
   document.getElementById('auth-overlay').classList.remove('hidden');
 })();
 
-// Save token on login
-const _origLogin = doLogin;
-// Patch to save token
-const origOnLoginSuccess = onLoginSuccess;
-async function onLoginSuccess(data) {
-  if (data.access_token) localStorage.setItem('sb_token', data.access_token);
-  await origOnLoginSuccess(data);
-}
+// Token saving is handled inside onLoginSuccess directly
 </script>
 </body>
 </html>
