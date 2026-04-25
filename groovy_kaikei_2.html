@@ -405,7 +405,7 @@ select.form-input{-webkit-appearance:none;appearance:none;}
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:var(--text3);">普通</span>
-          <span style="font-size:22px;font-weight:800;color:var(--accent);letter-spacing:3px;">1886166</span>
+          <span style="font-size:22px;font-weight:800;color:#1a1a1a;background:#FFF9C4;border-radius:8px;padding:4px 14px;letter-spacing:3px;">1886166</span>
         </div>
       </div>
     </div>
@@ -1573,34 +1573,47 @@ function renderExtraPlayers() {
   }
   list.innerHTML=extraPlayers.map(p=>`
     <div class="extra-card">
-      <div class="extra-top">
-        <div class="extra-name-wrap" onclick="${isAdmin()?'incrementVisit('+p.id+')':'void(0)'}" title="${isAdmin()?'タップで出席カウント':''}">
-          <div class="extra-name">${p.name}${p.visits>0?` <span style="background:var(--accent2);color:#fff;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px;">${p.visits}回</span>`:''}</div>
+      <div class="extra-top" style="align-items:flex-start;">
+        <div style="flex:1;">
+          <div class="extra-name">${p.name}</div>
           <div class="extra-part">${p.part}</div>
         </div>
         <div class="extra-fee-badge">¥${p.fee.toLocaleString('ja-JP')}/回</div>
       </div>
-      <div class="extra-bottom">
-        <div class="extra-count">${p.visits}回出席</div>
-        <div class="extra-total">往復小計: ¥${(p.fee*p.visits*2).toLocaleString('ja-JP')}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+        <div style="font-size:13px;color:var(--text2);">片道 ¥${p.fee.toLocaleString('ja-JP')}</div>
+        ${isAdmin()?`
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button onclick="decrementVisit(${p.id})" style="width:34px;height:34px;border-radius:50%;border:2px solid var(--border);background:var(--bg4);color:var(--text);font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">－</button>
+          <div style="text-align:center;min-width:48px;">
+            <div style="font-size:22px;font-weight:800;">${p.visits}</div>
+            <div style="font-size:11px;color:var(--text3);">回出席</div>
+          </div>
+          <button onclick="incrementVisit(${p.id})" style="width:34px;height:34px;border-radius:50%;border:2px solid var(--accent2);background:var(--accent2);color:#fff;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">＋</button>
+        </div>`:`
+        <div style="text-align:center;">
+          <div style="font-size:22px;font-weight:800;">${p.visits}</div>
+          <div style="font-size:11px;color:var(--text3);">回出席</div>
+        </div>`}
+        <div style="font-size:13px;color:var(--text2);text-align:right;">往復合計<br><span style="font-size:16px;font-weight:700;color:var(--text);">¥${(p.fee*p.visits*2).toLocaleString('ja-JP')}</span></div>
       </div>
       ${isAdmin()?`
-      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">手動加算（イレギュラー分）</div>
+      <div style="margin-top:10px;background:rgba(74,159,212,0.10);border:1.5px solid var(--accent2);border-radius:var(--radius-sm);padding:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;">✚ 手動加算</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input class="form-input" style="flex:1;margin-bottom:0;padding:8px 10px;font-size:14px;" type="number"
-            value="${p.manual_fee||0}" placeholder="金額"
+          <input class="form-input" style="flex:1;margin-bottom:0;padding:8px 10px;font-size:15px;font-weight:700;background:var(--bg);border-color:var(--accent2);" type="number"
+            value="${p.manual_fee||0}" placeholder="0"
             onchange="updateManualFee(${p.id},this.value)">
-          <input class="form-input" style="flex:2;margin-bottom:0;padding:8px 10px;font-size:13px;"
+          <input class="form-input" style="flex:2;margin-bottom:0;padding:8px 10px;font-size:13px;background:var(--bg);"
             value="${p.manual_note||''}" placeholder="備考（例: 定期区間外）"
             onchange="updateManualNote(${p.id},this.value)">
         </div>
-        <div style="font-size:13px;color:var(--accent);margin-top:6px;text-align:right;">
-          合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}
+        <div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:8px;text-align:right;border-top:1px solid rgba(74,159,212,0.3);padding-top:8px;">
+          🧾 総合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}
         </div>
       </div>`:
-      `<div style="margin-top:8px;font-size:13px;color:var(--text2);">合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}${p.manual_fee?` (手動加算 ¥${(p.manual_fee||0).toLocaleString('ja-JP')} 含む)`:''}</div>`}
-      <div class="extra-receipt-row" style="margin-top:8px;">
+      `${p.manual_fee?`<div style="margin-top:8px;font-size:13px;color:var(--text2);background:rgba(74,159,212,0.08);border-radius:6px;padding:6px 10px;">＋手動加算: ¥${(p.manual_fee||0).toLocaleString('ja-JP')}${p.manual_note?' ('+p.manual_note+')'':''}<br>総合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}</div>`:''}`}
+      <div class="extra-receipt-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
         <div style="font-size:12px;color:var(--text2);">領収証:</div>
         ${p.receipt_name?`<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`:`<div class="receipt-status-none">未アップロード</div>`}
         <div style="display:flex;gap:8px;">
@@ -1620,6 +1633,16 @@ async function incrementVisit(id) {
     await dbUpdate('extra_players',{visits:p.visits},`id=eq.${id}`, accessToken);
     showToast(p.name+' '+p.visits+'回目！');
   } catch(e) { p.visits--; renderExtraPlayers(); showToast('更新失敗: '+e.message,true); }
+}
+
+async function decrementVisit(id) {
+  const p=extraPlayers.find(x=>x.id===id); if (!p||p.visits<=0) { showToast('0回以下にはできません',true); return; }
+  p.visits--;
+  renderExtraPlayers();
+  try {
+    await dbUpdate('extra_players',{visits:p.visits},`id=eq.${id}`, accessToken);
+    showToast(p.name+' '+p.visits+'回に修正しました');
+  } catch(e) { p.visits++; renderExtraPlayers(); showToast('更新失敗: '+e.message,true); }
 }
 
 async function updateManualFee(id, val) {
