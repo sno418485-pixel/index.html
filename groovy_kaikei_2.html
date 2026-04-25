@@ -895,6 +895,25 @@ async function sendLineNotify(message) {
 }
 
 // ══════════════════════════════════════════════════════
+// LOADING / AUTH HELPERS（最初に定義）
+// ══════════════════════════════════════════════════════
+function showLoading(msg) {
+  const el = document.getElementById('loading-overlay');
+  if (el) el.classList.remove('hidden');
+  const lt = document.querySelector('.loading-text');
+  if (lt) lt.textContent = msg || '読み込み中...';
+}
+function hideLoading() {
+  const el = document.getElementById('loading-overlay');
+  if (el) el.classList.add('hidden');
+}
+function showAuth() {
+  hideLoading();
+  const el = document.getElementById('auth-overlay');
+  if (el) el.classList.remove('hidden');
+}
+
+// ══════════════════════════════════════════════════════
 // AUTH STATE
 // ══════════════════════════════════════════════════════
 let currentUser = null;   // Supabase auth user
@@ -973,17 +992,24 @@ async function doSignup() {
 async function onLoginSuccess(data) {
   accessToken = data.access_token;
   currentUser = data.user;
-  // Save token for session restore
   if (accessToken) localStorage.setItem('sb_token', accessToken);
-  // fetch profile
-  const profiles = await dbGet('profiles', `id=eq.${currentUser.id}`, accessToken);
-  currentProfile = profiles[0] || { role: 'member', name: currentUser.email };
-  // if admin email, ensure admin role
+
+  // authを隠してローディング表示
+  document.getElementById('auth-overlay').classList.add('hidden');
+  showLoading('データ読み込み中...');
+
+  try {
+    const profiles = await dbGet('profiles', `id=eq.${currentUser.id}`, accessToken);
+    currentProfile = profiles[0] || { role: 'member', name: currentUser.email };
+  } catch(e) {
+    currentProfile = { role: 'member', name: currentUser.email };
+  }
+
   if (currentUser.email === 'groovy2026blue@gmail.com' && currentProfile.role !== 'admin') {
-    await dbUpdate('profiles', { role: 'admin' }, `id=eq.${currentUser.id}`, accessToken);
+    try { await dbUpdate('profiles', {role:'admin'}, `id=eq.${currentUser.id}`, accessToken); } catch(e) {}
     currentProfile.role = 'admin';
   }
-  document.getElementById('auth-overlay').classList.add('hidden');
+
   await init();
 }
 
@@ -1061,20 +1087,24 @@ function go(id) {
 // INIT
 // ══════════════════════════════════════════════════════
 async function init() {
-  document.getElementById('loading-overlay').classList.remove('hidden');
-  try {
-    await Promise.all([
-      loadMembers(), loadRepairHistory(), loadExtraPlayers(),
-      loadOtherHistory(), loadSnapshots(), loadSettings(),
-      loadDashboard(), loadEventCollections()
-    ]);
-    renderHome();
-    go('home');
-  } catch(e) {
-    showToast('読み込みエラー: '+e.message, true);
-    console.error(e);
+  // 各データを個別に読み込む（1つ失敗しても他は続行）
+  const loads = [
+    ['members', loadMembers],
+    ['repair', loadRepairHistory],
+    ['extra', loadExtraPlayers],
+    ['other', loadOtherHistory],
+    ['snapshots', loadSnapshots],
+    ['settings', loadSettings],
+    ['dashboard', loadDashboard],
+    ['events', loadEventCollections],
+  ];
+  for (const [name, fn] of loads) {
+    try { await fn(); }
+    catch(e) { console.warn(`load ${name} failed:`, e.message); }
   }
-  document.getElementById('loading-overlay').classList.add('hidden');
+  hideLoading();
+  try { renderHome(); go('home'); }
+  catch(e) { console.error('render error:', e); }
 }
 
 function renderHome() {
@@ -1124,10 +1154,18 @@ async function loadDashboard() {
   try {
     const rows = await dbGet('finance_dashboard','order=id.asc&limit=1', accessToken);
     dashboardData = rows[0] || null;
-  } catch(e) {}
+  } catch(e) {
+    dashboardData = null;
+    console.warn('dashboard load failed:', e.message);
+  }
 }
 async function loadEventCollections() {
-  eventCollections = await dbGet('event_collections','archived=eq.false&order=created_at.desc', accessToken);
+  try {
+    eventCollections = await dbGet('event_collections','archived=eq.false&order=created_at.desc', accessToken);
+  } catch(e) {
+    eventCollections = [];
+    console.warn('event_collections load failed:', e.message);
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1612,7 +1650,7 @@ function renderExtraPlayers() {
           🧾 総合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}
         </div>
       </div>`:
-      `${p.manual_fee?`<div style="margin-top:8px;font-size:13px;color:var(--text2);background:rgba(74,159,212,0.08);border-radius:6px;padding:6px 10px;">＋手動加算: ¥${(p.manual_fee||0).toLocaleString('ja-JP')}${p.manual_note?' ('+p.manual_note+')'':''}<br>総合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}</div>`:''}`}
+      `${p.manual_fee ? '<div style="margin-top:8px;font-size:13px;color:var(--text2);background:rgba(74,159,212,0.08);border-radius:6px;padding:6px 10px;">＋手動加算: ¥' + (p.manual_fee||0).toLocaleString('ja-JP') + (p.manual_note ? ' (' + p.manual_note + ')' : '') + '<br>総合計: ¥' + (p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP') + '</div>' : ''}`}
       <div class="extra-receipt-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
         <div style="font-size:12px;color:var(--text2);">領収証:</div>
         ${p.receipt_name?`<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`:`<div class="receipt-status-none">未アップロード</div>`}
@@ -1843,33 +1881,65 @@ function showToast(msg, isError=false) {
 // BOOT: check existing session
 // ══════════════════════════════════════════════════════
 (async()=>{
-  // Try to restore session from Supabase
-  try {
-    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+(localStorage.getItem('sb_token')||'')}
-    });
-    if (r.ok) {
-      const user = await r.json();
-      if (user.id) {
-        accessToken = localStorage.getItem('sb_token');
-        currentUser = user;
-        const profiles = await dbGet('profiles',`id=eq.${user.id}`, accessToken);
-        currentProfile = profiles[0] || { role:'member', name: user.email };
-        if (user.email==='groovy2026blue@gmail.com'&&currentProfile.role!=='admin') {
-          await dbUpdate('profiles',{role:'admin'},`id=eq.${user.id}`, accessToken);
-          currentProfile.role='admin';
-        }
-        await init();
-        document.getElementById('loading-overlay').classList.add('hidden');
-        return;
-      }
-    }
-  } catch(e) {}
-  document.getElementById('loading-overlay').classList.add('hidden');
-  document.getElementById('auth-overlay').classList.remove('hidden');
-})();
+  // 必ずローディングを隠す安全網
+  const safeHideLoading = () => {
+    try { hideLoading(); } catch(e) {}
+  };
 
-// Token saving is handled inside onLoginSuccess directly
+  showLoading('起動中...');
+
+  const token = localStorage.getItem('sb_token');
+  if (!token) {
+    showAuth();
+    return;
+  }
+
+  try {
+    // トークン検証
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + token }
+    });
+
+    if (!r.ok) {
+      localStorage.removeItem('sb_token');
+      showAuth();
+      return;
+    }
+
+    const user = await r.json();
+    if (!user || !user.id) {
+      localStorage.removeItem('sb_token');
+      showAuth();
+      return;
+    }
+
+    accessToken = token;
+    currentUser = user;
+
+    // プロフィール取得
+    try {
+      const profiles = await dbGet('profiles', `id=eq.${user.id}`, accessToken);
+      currentProfile = profiles[0] || { role: 'member', name: user.email };
+    } catch(e) {
+      currentProfile = { role: 'member', name: user.email };
+    }
+
+    // 管理者メール → admin強制
+    if (user.email === 'groovy2026blue@gmail.com' && currentProfile.role !== 'admin') {
+      try { await dbUpdate('profiles', { role: 'admin' }, `id=eq.${user.id}`, accessToken); } catch(e) {}
+      currentProfile.role = 'admin';
+    }
+
+    showLoading('データ読み込み中...');
+    await init();
+
+  } catch(e) {
+    console.error('Boot error:', e);
+    safeHideLoading();
+    localStorage.removeItem('sb_token');
+    showAuth();
+  }
+})();
 </script>
 </body>
 </html>
