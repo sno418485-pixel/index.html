@@ -964,23 +964,19 @@ async function dbUpsert(table, data, onConflict, token) {
 // LINE NOTIFY
 // ══════════════════════════════════════════════════════
 async function sendLineNotify(message) {
-  // CORS制限のためプロキシ経由が必要な場合があります
-  // 本番環境ではSupabase Edge Functionを経由することを推奨します
   try {
-    await fetch('https://notify-api.line.me/api/notify', {
+    // https://script.google.com/macros/s/AKfycby8QcsG7Zm2XX6yG7fzdPz7Yimv0zy1Ju5xIvt5zSGkD8xDYihAifwSiOzt-_R6kExswA/exec
+    const gasUrl = 'https://script.google.com/macros/s/https://script.google.com/macros/s/AKfycby8QcsG7Zm2XX6yG7fzdPz7Yimv0zy1Ju5xIvt5zSGkD8xDYihAifwSiOzt-_R6kExswA/exec/exec';
+    
+    await fetch(gasUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + LINE_TOKEN,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: 'message=' + encodeURIComponent(message),
-      mode: 'no-cors' // CORSをバイパス（レスポンスは読めないが送信は可能）
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'message=' + encodeURIComponent(message)
     });
   } catch(e) {
     console.warn('LINE通知送信:', e);
   }
 }
-
 // ══════════════════════════════════════════════════════
 // LOADING / AUTH HELPERS（最初に定義）
 // ══════════════════════════════════════════════════════
