@@ -5,245 +5,399 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Groovy 会計</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  :root{
-    --bg:#0d1b2e;--bg2:#152035;--bg3:#1c2d45;--bg4:#243550;
-    --accent:#6cb4e4;--accent2:#4a9fd4;
-    --green:#4cd46a;--green2:#3ab558;--purple:#7c3aed;
-    --red:#e05252;--amber:#f59e0b;
-    --text:#ffffff;--text2:#a0b4c8;--text3:#6080a0;
-    --border:#2a3f5a;--radius:16px;--radius-sm:10px;
-  }
-  html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;font-size:16px;overflow:hidden;}
-  #app{height:100%;display:flex;flex-direction:column;max-width:430px;margin:0 auto;position:relative;}
-  .screen{flex:1;overflow-y:auto;padding:0 16px 32px;display:none;}
-  .screen.active{display:block;}
-  .screen::-webkit-scrollbar{display:none;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:#0d1b2e;--bg2:#152035;--bg3:#1c2d45;--bg4:#243550;
+  --accent:#6cb4e4;--accent2:#4a9fd4;
+  --green:#4cd46a;--green2:#3ab558;--purple:#7c3aed;
+  --red:#e05252;--amber:#f59e0b;
+  --text:#ffffff;--text2:#a0b4c8;--text3:#6080a0;
+  --border:#2a3f5a;--radius:16px;--radius-sm:10px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+  font-size:16px;overflow:hidden;}
 
-  /* Loading overlay */
-  #loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
-  #loading-overlay.hidden{display:none;}
-  .loading-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
-  @keyframes spin{to{transform:rotate(360deg);}}
-  .loading-text{color:var(--text2);font-size:14px;}
+/* ── App wrapper ── */
+#app{position:fixed;inset:0;max-width:430px;margin:0 auto;overflow:hidden;}
 
-  /* Header */
-  .page-header{padding:20px 0 8px;position:sticky;top:0;background:var(--bg);z-index:10;}
-  .back-btn{color:var(--accent);font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;padding:4px 0;background:none;border:none;}
-  .page-title{font-size:20px;font-weight:700;color:var(--accent);text-align:center;margin:8px 0 16px;}
+/* ── Screens: only .active shows, covers full area ── */
+.screen{
+  position:absolute;inset:0;
+  overflow-y:auto;
+  padding:0 16px 40px;
+  background:var(--bg);
+  display:none;
+  -webkit-overflow-scrolling:touch;
+}
+.screen.active{display:block;}
+.screen::-webkit-scrollbar{display:none;}
 
-  /* Home */
-  #screen-home{display:flex;flex-direction:column;padding-top:0;}
-  .home-hero{text-align:center;padding:48px 0 36px;}
-  .home-hero h1{font-size:42px;font-weight:800;letter-spacing:-1px;}
-  .home-hero h1 span{color:var(--accent);}
-  .home-hero .underline{width:80px;height:3px;background:var(--accent);margin:8px auto 0;border-radius:2px;}
-  .menu-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:22px;background:var(--bg3);border:none;border-radius:var(--radius);color:var(--text);font-size:18px;font-weight:600;cursor:pointer;margin-bottom:14px;transition:background .15s,transform .1s;}
-  .menu-btn:active{background:var(--bg4);transform:scale(0.98);}
-  .menu-btn .icon{font-size:24px;}
+/* ── Loading / Auth overlays ── */
+#loading-overlay,#auth-overlay{
+  position:fixed;inset:0;background:var(--bg);z-index:999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+}
+#loading-overlay.hidden,#auth-overlay.hidden{display:none;}
+.loading-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{color:var(--text2);font-size:14px;}
 
-  /* Cards */
-  .card{background:var(--bg3);border-radius:var(--radius);padding:18px;margin-bottom:12px;}
+/* ── Auth form ── */
+.auth-card{background:var(--bg3);border-radius:var(--radius);padding:28px 24px;width:90%;max-width:360px;}
+.auth-title{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px;}
+.auth-sub{font-size:13px;color:var(--text2);text-align:center;margin-bottom:24px;}
+.auth-tab-bar{display:flex;background:var(--bg4);border-radius:10px;padding:3px;gap:3px;margin-bottom:20px;}
+.auth-tab{flex:1;padding:8px;border:none;border-radius:8px;background:transparent;color:var(--text2);
+  font-size:13px;font-weight:600;cursor:pointer;}
+.auth-tab.active{background:var(--accent2);color:#fff;}
 
-  /* Progress */
-  .progress-big{text-align:center;}
-  .progress-num{font-size:52px;font-weight:800;line-height:1;}
-  .progress-num span{font-size:28px;font-weight:400;color:var(--text2);}
-  .progress-sub{color:var(--text2);font-size:14px;margin:6px 0 14px;}
-  .progress-bar-wrap{background:var(--bg4);border-radius:99px;height:12px;margin-bottom:6px;}
-  .progress-bar{background:var(--accent);height:12px;border-radius:99px;transition:width .4s;}
-  .progress-pct{text-align:center;color:var(--accent);font-size:13px;}
+/* ── Header ── */
+.page-header{padding:20px 0 8px;position:sticky;top:0;background:var(--bg);z-index:10;}
+.back-btn{color:var(--accent);font-size:15px;cursor:pointer;display:inline-flex;align-items:center;
+  gap:4px;padding:4px 0;background:none;border:none;}
+.page-title{font-size:20px;font-weight:700;color:var(--accent);text-align:center;margin:8px 0 16px;}
 
-  /* Member row */
-  .member-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;}
-  .member-name{font-size:16px;font-weight:600;}
-  .member-part{font-size:13px;color:var(--text2);margin-top:2px;}
+/* ── User bar ── */
+.user-bar{display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg3);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;}
+.user-bar-name{font-size:13px;color:var(--text2);}
+.user-bar-role{font-size:11px;padding:2px 10px;border-radius:99px;font-weight:700;}
+.role-admin{background:var(--purple);color:#fff;}
+.role-member{background:var(--bg4);color:var(--text2);}
+.logout-btn{font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;}
 
-  /* Toggle */
-  .toggle{width:52px;height:30px;border-radius:99px;background:var(--bg4);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;border:none;}
-  .toggle.on{background:var(--accent2);}
-  .toggle::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s;}
-  .toggle.on::after{left:25px;}
+/* ── Home ── */
+#screen-home{padding-top:0;}
+.home-hero{text-align:center;padding:36px 0 28px;}
+.home-hero h1{font-size:42px;font-weight:800;letter-spacing:-1px;}
+.home-hero h1 span{color:var(--accent);}
+.home-hero .underline{width:80px;height:3px;background:var(--accent);margin:8px auto 0;border-radius:2px;}
+.menu-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:20px;
+  background:var(--bg3);border:none;border-radius:var(--radius);color:var(--text);font-size:18px;
+  font-weight:600;cursor:pointer;margin-bottom:12px;transition:background .15s,transform .1s;}
+.menu-btn:active{background:var(--bg4);transform:scale(0.98);}
+.menu-btn .icon{font-size:22px;}
 
-  /* Tabs */
-  .tab-bar{display:flex;background:var(--bg3);border-radius:var(--radius);padding:4px;gap:4px;margin-bottom:16px;}
-  .tab-btn{flex:1;padding:10px 4px;border:none;border-radius:12px;background:transparent;color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,color .15s;}
-  .tab-btn.active{background:var(--accent2);color:#fff;}
-  .tab-panel{display:none;}
-  .tab-panel.active{display:block;}
+/* ── Dashboard btn (admin only) ── */
+.dashboard-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:16px;
+  background:linear-gradient(135deg,var(--purple),#9333ea);border:none;border-radius:var(--radius);
+  color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:12px;}
 
-  /* Month nav */
-  .month-select-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
-  .month-nav{background:none;border:none;color:var(--accent);font-size:22px;cursor:pointer;padding:4px 12px;}
-  .month-label{font-size:17px;font-weight:700;}
+/* ── Cards ── */
+.card{background:var(--bg3);border-radius:var(--radius);padding:18px;margin-bottom:12px;}
 
-  /* Buttons */
-  .save-month-btn{width:100%;padding:16px;background:var(--accent2);border:none;border-radius:var(--radius);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:12px;}
-  .save-month-btn:active{opacity:.85;}
-  .green-btn{width:100%;padding:18px;background:var(--green);border:none;border-radius:var(--radius);color:#fff;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:12px;}
-  .green-btn:active{background:var(--green2);}
-  .blue-btn{width:100%;padding:18px;background:var(--bg3);border:none;border-radius:var(--radius);color:var(--text);font-size:17px;font-weight:600;cursor:pointer;margin-bottom:12px;}
-  .blue-btn:active{opacity:.8;}
-  .purple-btn{width:100%;padding:18px;background:var(--purple);border:none;border-radius:var(--radius);color:#fff;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:12px;}
-  .submit-btn{width:100%;padding:16px;background:var(--accent2);border:none;border-radius:var(--radius);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;}
-  .submit-btn:active{opacity:.85;}
-  .upload-mini{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;padding:5px 10px;cursor:pointer;}
+/* ── Progress ── */
+.progress-big{text-align:center;}
+.progress-num{font-size:52px;font-weight:800;line-height:1;}
+.progress-num span{font-size:28px;font-weight:400;color:var(--text2);}
+.progress-sub{color:var(--text2);font-size:14px;margin:6px 0 14px;}
+.progress-bar-wrap{background:var(--bg4);border-radius:99px;height:12px;margin-bottom:6px;}
+.progress-bar{background:var(--accent);height:12px;border-radius:99px;transition:width .4s;}
+.progress-pct{text-align:center;color:var(--accent);font-size:13px;}
 
-  /* Forms */
-  .form-label{font-size:13px;color:var(--text2);margin-bottom:6px;display:block;}
-  .form-input{width:100%;background:var(--bg4);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:16px;padding:14px;outline:none;margin-bottom:14px;}
-  .form-input:focus{border-color:var(--accent);}
-  .form-input::placeholder{color:var(--text3);}
-  textarea.form-input{resize:none;height:90px;}
-  select.form-input{-webkit-appearance:none;appearance:none;}
+/* ── Member row ── */
+.member-row{display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;}
+.member-name{font-size:16px;font-weight:600;}
+.member-part{font-size:13px;color:var(--text2);margin-top:2px;}
 
-  /* Upload */
-  .upload-box{border:2px dashed var(--accent2);border-radius:var(--radius-sm);padding:32px 16px;text-align:center;cursor:pointer;position:relative;margin-bottom:14px;}
-  .upload-box input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-  .upload-box .upload-icon{font-size:32px;margin-bottom:8px;}
-  .upload-box .upload-text{color:var(--accent);font-size:14px;}
-  .upload-done{color:var(--green);font-size:13px;margin-top:6px;}
+/* ── Toggle ── */
+.toggle{width:52px;height:30px;border-radius:99px;background:var(--bg4);position:relative;
+  cursor:pointer;transition:background .2s;flex-shrink:0;border:none;}
+.toggle.on{background:var(--accent2);}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;
+  border-radius:50%;background:#fff;transition:left .2s;}
+.toggle.on::after{left:25px;}
+.toggle:disabled{opacity:.4;cursor:not-allowed;}
 
-  /* Checklist */
-  .check-item{display:flex;align-items:center;gap:12px;padding:12px 0;font-size:15px;cursor:pointer;}
-  .check-box{width:26px;height:26px;border-radius:6px;border:2px solid var(--border);background:transparent;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s;}
-  .check-box.checked{background:var(--accent2);border-color:var(--accent2);}
-  .check-box.checked::after{content:'✓';color:#fff;font-size:15px;font-weight:700;}
+/* ── Tabs ── */
+.tab-bar{display:flex;background:var(--bg3);border-radius:var(--radius);padding:4px;gap:4px;margin-bottom:16px;}
+.tab-btn{flex:1;padding:9px 2px;border:none;border-radius:12px;background:transparent;
+  color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,color .15s;}
+.tab-btn.active{background:var(--accent2);color:#fff;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
 
-  /* Badges */
-  .badge{display:inline-block;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:700;}
-  .badge.pending{background:var(--amber);color:#000;}
-  .badge.approved{background:var(--green);color:#000;}
+/* ── Month nav ── */
+.month-select-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.month-nav{background:none;border:none;color:var(--accent);font-size:22px;cursor:pointer;padding:4px 12px;}
+.month-label{font-size:17px;font-weight:700;}
 
-  /* History */
-  .history-row{background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;}
-  .history-top{display:flex;justify-content:space-between;align-items:flex-start;}
-  .history-name{font-size:16px;font-weight:600;}
-  .history-amount{font-size:18px;font-weight:700;color:var(--accent);}
-  .history-sub{font-size:13px;color:var(--text2);margin:3px 0;}
-  .history-date{font-size:12px;color:var(--text3);margin-top:6px;}
+/* ── Buttons ── */
+.save-month-btn{width:100%;padding:16px;background:var(--accent2);border:none;
+  border-radius:var(--radius);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:12px;}
+.green-btn{width:100%;padding:18px;background:var(--green);border:none;border-radius:var(--radius);
+  color:#fff;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:12px;}
+.green-btn:active{background:var(--green2);}
+.blue-btn{width:100%;padding:18px;background:var(--bg3);border:none;border-radius:var(--radius);
+  color:var(--text);font-size:17px;font-weight:600;cursor:pointer;margin-bottom:12px;}
+.blue-btn:active{opacity:.8;}
+.purple-btn{width:100%;padding:18px;background:var(--purple);border:none;border-radius:var(--radius);
+  color:#fff;font-size:17px;font-weight:700;cursor:pointer;margin-bottom:12px;}
+.submit-btn{width:100%;padding:16px;background:var(--accent2);border:none;border-radius:var(--radius);
+  color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin-top:4px;}
+.submit-btn:active{opacity:.85;}
+.upload-mini{background:none;border:1px solid var(--border);border-radius:6px;
+  color:var(--text2);font-size:12px;padding:5px 10px;cursor:pointer;}
 
-  /* Summary */
-  .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
-  .summary-card{background:var(--bg3);border-radius:var(--radius-sm);padding:14px;}
-  .summary-card .s-label{font-size:12px;color:var(--text2);margin-bottom:4px;}
-  .summary-card .s-val{font-size:22px;font-weight:800;}
-  .summary-card .s-val.amber{color:var(--amber);}
+/* ── Forms ── */
+.form-label{font-size:13px;color:var(--text2);margin-bottom:6px;display:block;}
+.form-input{width:100%;background:var(--bg4);border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);color:var(--text);font-size:16px;padding:14px;
+  outline:none;margin-bottom:14px;}
+.form-input:focus{border-color:var(--accent);}
+.form-input::placeholder{color:var(--text3);}
+textarea.form-input{resize:none;height:90px;}
+select.form-input{-webkit-appearance:none;appearance:none;}
 
-  /* Calendar */
-  .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
-  .cal-nav{background:none;border:none;color:var(--accent);font-size:22px;cursor:pointer;padding:4px 10px;}
-  .cal-month{font-size:18px;font-weight:700;}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
-  .cal-dow{text-align:center;font-size:12px;color:var(--text3);padding:4px 0;}
-  .cal-day{text-align:center;padding:8px 2px;font-size:15px;border-radius:8px;cursor:pointer;}
-  .cal-day.today{background:var(--accent2);font-weight:800;}
-  .cal-day:active{background:var(--bg4);}
+/* ── Upload box ── */
+.upload-box{border:2px dashed var(--accent2);border-radius:var(--radius-sm);padding:28px 16px;
+  text-align:center;cursor:pointer;position:relative;margin-bottom:14px;}
+.upload-box input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-box .upload-icon{font-size:28px;margin-bottom:6px;}
+.upload-box .upload-text{color:var(--accent);font-size:14px;}
+.upload-done{color:var(--green);font-size:13px;margin-top:6px;}
 
-  /* Total */
-  .total-card{background:var(--bg3);border-radius:var(--radius);padding:18px;text-align:center;margin-bottom:14px;}
-  .total-label{font-size:13px;color:var(--text2);margin-bottom:4px;}
-  .total-val{font-size:40px;font-weight:800;}
-  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-  .section-title{font-size:16px;font-weight:700;}
-  .add-link{color:var(--accent);font-size:14px;cursor:pointer;background:none;border:none;}
+/* ── Checklist ── */
+.check-item{display:flex;align-items:center;gap:12px;padding:12px 0;font-size:15px;cursor:pointer;}
+.check-box{width:26px;height:26px;border-radius:6px;border:2px solid var(--border);
+  background:transparent;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s;}
+.check-box.checked{background:var(--accent2);border-color:var(--accent2);}
+.check-box.checked::after{content:'✓';color:#fff;font-size:15px;font-weight:700;}
 
-  /* Extra player cards */
-  .extra-card{background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;}
-  .extra-top{display:flex;align-items:center;justify-content:space-between;}
-  .extra-name-wrap{cursor:pointer;flex:1;}
-  .extra-name{font-size:16px;font-weight:700;}
-  .extra-part{font-size:13px;color:var(--text2);margin-top:2px;}
-  .extra-fee-badge{font-size:15px;font-weight:700;color:var(--accent);}
-  .extra-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
-  .extra-count{font-size:13px;color:var(--text2);}
-  .extra-total{font-size:13px;color:var(--text2);}
-  .extra-receipt-row{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
-  .receipt-status-ok{font-size:12px;color:var(--green);}
-  .receipt-status-none{font-size:12px;color:var(--text3);}
+/* ── Badges ── */
+.badge{display:inline-block;padding:4px 12px;border-radius:99px;font-size:12px;font-weight:700;}
+.badge.pending{background:var(--amber);color:#000;}
+.badge.approved{background:var(--green);color:#000;}
+.badge.rejected{background:var(--red);color:#fff;}
 
-  /* Month history */
-  .month-hist-card{background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;cursor:pointer;}
-  .month-hist-header{display:flex;align-items:center;justify-content:space-between;}
-  .month-hist-title{font-size:16px;font-weight:700;}
-  .month-hist-pct{font-size:14px;color:var(--accent);font-weight:700;}
-  .month-hist-bar-wrap{background:var(--bg4);border-radius:99px;height:6px;margin:8px 0 4px;}
-  .month-hist-bar{background:var(--accent);height:6px;border-radius:99px;}
-  .month-hist-sub{font-size:12px;color:var(--text3);}
-  .month-hist-detail{margin-top:10px;border-top:1px solid var(--border);padding-top:10px;display:none;}
-  .month-hist-detail.open{display:block;}
-  .mhd-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);}
-  .mhd-row:last-child{border-bottom:none;}
-  .mhd-paid{color:var(--green);font-size:13px;font-weight:700;}
-  .mhd-unpaid{color:var(--red);font-size:13px;font-weight:700;}
+/* ── History rows ── */
+.history-row{background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;}
+.history-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.history-name{font-size:16px;font-weight:600;}
+.history-amount{font-size:18px;font-weight:700;color:var(--accent);}
+.history-sub{font-size:13px;color:var(--text2);margin:3px 0;}
+.history-date{font-size:12px;color:var(--text3);margin-top:6px;}
 
-  /* Modals */
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:flex-end;justify-content:center;}
-  .modal-overlay.open{display:flex;}
-  .modal-sheet{background:var(--bg2);border-radius:20px 20px 0 0;padding:20px 20px 40px;width:100%;max-width:430px;max-height:90vh;overflow-y:auto;}
-  .modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
-  .modal-close{float:right;background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;margin-top:-4px;}
+/* ── Summary ── */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.summary-card{background:var(--bg3);border-radius:var(--radius-sm);padding:14px;}
+.summary-card .s-label{font-size:12px;color:var(--text2);margin-bottom:4px;}
+.summary-card .s-val{font-size:22px;font-weight:800;}
+.summary-card .s-val.amber{color:var(--amber);}
 
-  /* Confirm dialog */
-  .dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;display:none;align-items:center;justify-content:center;}
-  .dialog-overlay.open{display:flex;}
-  .dialog-box{background:#fff;border-radius:14px;padding:20px 24px;width:80%;max-width:300px;color:#000;}
-  .dialog-msg{font-size:15px;margin-bottom:18px;line-height:1.7;white-space:pre-wrap;}
-  .dialog-btns{display:flex;justify-content:flex-end;gap:20px;}
-  .dialog-cancel{color:var(--accent2);font-size:16px;background:none;border:none;cursor:pointer;font-weight:600;}
-  .dialog-ok{color:var(--accent2);font-size:16px;background:none;border:none;cursor:pointer;font-weight:700;}
+/* ── Calendar ── */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.cal-nav{background:none;border:none;color:var(--accent);font-size:22px;cursor:pointer;padding:4px 10px;}
+.cal-month{font-size:18px;font-weight:700;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cal-dow{text-align:center;font-size:12px;color:var(--text3);padding:4px 0;}
+.cal-day{text-align:center;padding:8px 2px;font-size:15px;border-radius:8px;cursor:pointer;}
+.cal-day.today{background:var(--accent2);font-weight:800;}
+.cal-day:active{background:var(--bg4);}
 
-  /* Toast */
-  .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:12px 28px;border-radius:99px;font-size:14px;font-weight:700;z-index:400;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
-  .toast.show{opacity:1;}
-  .toast.error{background:var(--red);}
+/* ── Total card ── */
+.total-card{background:var(--bg3);border-radius:var(--radius);padding:18px;text-align:center;margin-bottom:14px;}
+.total-label{font-size:13px;color:var(--text2);margin-bottom:4px;}
+.total-val{font-size:40px;font-weight:800;}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.section-title{font-size:16px;font-weight:700;}
+.add-link{color:var(--accent);font-size:14px;cursor:pointer;background:none;border:none;}
 
-  /* AI result */
-  .ai-result{background:var(--bg4);border-radius:var(--radius-sm);padding:14px;margin-top:14px;display:none;}
-  .ai-result.show{display:block;}
-  .ai-result-title{font-size:13px;color:var(--accent);margin-bottom:6px;font-weight:700;}
-  .ai-result-text{font-size:15px;color:var(--text);line-height:1.6;white-space:pre-wrap;}
+/* ── Extra player cards ── */
+.extra-card{background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;}
+.extra-top{display:flex;align-items:center;justify-content:space-between;}
+.extra-name-wrap{cursor:pointer;flex:1;}
+.extra-name{font-size:16px;font-weight:700;}
+.extra-part{font-size:13px;color:var(--text2);margin-top:2px;}
+.extra-fee-badge{font-size:15px;font-weight:700;color:var(--accent);}
+.extra-bottom{display:flex;align-items:center;justify-content:space-between;
+  margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
+.extra-count{font-size:13px;color:var(--text2);}
+.extra-total{font-size:13px;color:var(--text2);}
+.extra-receipt-row{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+.receipt-status-ok{font-size:12px;color:var(--green);}
+.receipt-status-none{font-size:12px;color:var(--text3);}
 
-  /* Divider / footer */
-  .divider{height:1px;background:var(--border);margin:16px 0;}
-  .total-footer{text-align:center;padding:14px 0 0;}
-  .total-footer .tf-label{font-size:13px;color:var(--text2);}
-  .total-footer .tf-val{font-size:28px;font-weight:800;}
+/* ── Month history ── */
+.month-hist-card{background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;
+  margin-bottom:10px;cursor:pointer;}
+.month-hist-header{display:flex;align-items:center;justify-content:space-between;}
+.month-hist-title{font-size:16px;font-weight:700;}
+.month-hist-pct{font-size:14px;color:var(--accent);font-weight:700;}
+.month-hist-bar-wrap{background:var(--bg4);border-radius:99px;height:6px;margin:8px 0 4px;}
+.month-hist-bar{background:var(--accent);height:6px;border-radius:99px;}
+.month-hist-sub{font-size:12px;color:var(--text3);}
+.month-hist-detail{margin-top:10px;border-top:1px solid var(--border);padding-top:10px;display:none;}
+.month-hist-detail.open{display:block;}
+.mhd-row{display:flex;justify-content:space-between;align-items:center;
+  padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);}
+.mhd-row:last-child{border-bottom:none;}
+.mhd-paid{color:var(--green);font-size:13px;font-weight:700;}
+.mhd-unpaid{color:var(--red);font-size:13px;font-weight:700;}
+
+/* ── Modals ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;
+  display:none;align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal-sheet{background:var(--bg2);border-radius:20px 20px 0 0;padding:20px 20px 48px;
+  width:100%;max-width:430px;max-height:92vh;overflow-y:auto;}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
+.modal-close{float:right;background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;margin-top:-4px;}
+
+/* ── Dashboard modal ── */
+.dash-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
+  display:none;align-items:center;justify-content:center;padding:16px;}
+.dash-modal.open{display:flex;}
+.dash-card{background:var(--bg2);border-radius:var(--radius);padding:24px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;}
+.dash-title{font-size:20px;font-weight:800;margin-bottom:20px;color:var(--accent);}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.dash-item{background:var(--bg3);border-radius:var(--radius-sm);padding:14px;}
+.dash-item.full{grid-column:1/-1;}
+.dash-item-label{font-size:12px;color:var(--text2);margin-bottom:4px;}
+.dash-item-val{font-size:24px;font-weight:800;}
+.dash-item-val.green{color:var(--green);}
+.dash-item-val.red{color:var(--red);}
+.dash-item-val.amber{color:var(--amber);}
+.dash-edit-row{display:flex;gap:8px;margin-top:8px;}
+.dash-edit-input{flex:1;background:var(--bg4);border:1px solid var(--border);border-radius:8px;
+  color:var(--text);font-size:15px;padding:8px 12px;outline:none;}
+.dash-edit-btn{background:var(--accent2);border:none;border-radius:8px;color:#fff;
+  font-size:13px;padding:8px 14px;cursor:pointer;white-space:nowrap;}
+
+/* ── Confirm dialog ── */
+.dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;
+  display:none;align-items:center;justify-content:center;}
+.dialog-overlay.open{display:flex;}
+.dialog-box{background:#fff;border-radius:14px;padding:20px 24px;width:82%;max-width:320px;color:#000;}
+.dialog-msg{font-size:15px;margin-bottom:18px;line-height:1.7;white-space:pre-wrap;}
+.dialog-btns{display:flex;justify-content:flex-end;gap:20px;}
+.dialog-cancel{color:var(--accent2);font-size:16px;background:none;border:none;cursor:pointer;font-weight:600;}
+.dialog-ok{color:var(--accent2);font-size:16px;background:none;border:none;cursor:pointer;font-weight:700;}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+  background:var(--green);color:#fff;padding:12px 28px;border-radius:99px;
+  font-size:14px;font-weight:700;z-index:400;opacity:0;transition:opacity .3s;
+  pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center;}
+.toast.show{opacity:1;}
+.toast.error{background:var(--red);}
+
+/* ── AI result ── */
+.ai-result{background:var(--bg4);border-radius:var(--radius-sm);padding:14px;margin-top:14px;display:none;}
+.ai-result.show{display:block;}
+.ai-result-title{font-size:13px;color:var(--accent);margin-bottom:6px;font-weight:700;}
+.ai-result-text{font-size:15px;color:var(--text);line-height:1.6;white-space:pre-wrap;}
+
+/* ── Divider / footer ── */
+.divider{height:1px;background:var(--border);margin:16px 0;}
+.total-footer{text-align:center;padding:14px 0 0;}
+.total-footer .tf-label{font-size:13px;color:var(--text2);}
+.total-footer .tf-val{font-size:28px;font-weight:800;}
+
+/* ── Event collection cards ── */
+.event-card{background:var(--bg3);border-radius:var(--radius-sm);padding:16px;margin-bottom:10px;}
+.event-card-title{font-size:16px;font-weight:700;margin-bottom:4px;}
+.event-card-meta{font-size:12px;color:var(--text2);margin-bottom:10px;}
+.event-card-bar-wrap{background:var(--bg4);border-radius:99px;height:8px;margin-bottom:6px;}
+.event-card-bar{background:var(--accent);height:8px;border-radius:99px;}
+.event-card-pct{font-size:12px;color:var(--accent);text-align:right;}
+
+/* ── Admin action row ── */
+.admin-action-row{display:flex;gap:6px;margin-top:8px;}
+.action-btn{flex:1;padding:8px 4px;border:none;border-radius:8px;font-size:12px;
+  font-weight:700;cursor:pointer;}
+.action-approve{background:var(--green);color:#000;}
+.action-reject{background:var(--red);color:#fff;}
 </style>
 </head>
 <body>
 
-<!-- Loading -->
+<!-- ═══ Loading ═══ -->
 <div id="loading-overlay">
   <div class="loading-spinner"></div>
-  <div class="loading-text">データを読み込み中...</div>
+  <div class="loading-text">読み込み中...</div>
 </div>
 
+<!-- ═══ Auth ═══ -->
+<div id="auth-overlay" class="hidden">
+  <div class="auth-card">
+    <div class="auth-title">🎺 Groovy 会計</div>
+    <div class="auth-sub">Groovy Sounds Jazz Orchestra</div>
+    <div class="auth-tab-bar">
+      <button class="auth-tab active" onclick="switchAuthTab('login')">ログイン</button>
+      <button class="auth-tab" onclick="switchAuthTab('signup')">新規登録</button>
+    </div>
+    <div id="auth-login-panel">
+      <label class="form-label">メールアドレス</label>
+      <input class="form-input" id="login-email" type="email" placeholder="your@email.com">
+      <label class="form-label">パスワード</label>
+      <input class="form-input" id="login-pass" type="password" placeholder="パスワード">
+      <button class="submit-btn" onclick="doLogin()">ログイン</button>
+    </div>
+    <div id="auth-signup-panel" style="display:none;">
+      <label class="form-label">名前</label>
+      <input class="form-input" id="signup-name" placeholder="山田 太郎">
+      <label class="form-label">パート</label>
+      <select class="form-input" id="signup-part" onchange="onPartChange('signup-part','signup-part-other-wrap')">
+        <option value="サックス">サックス</option>
+        <option value="トロンボーン">トロンボーン</option>
+        <option value="トランペット">トランペット</option>
+        <option value="リズム">リズム</option>
+        <option value="その他">その他</option>
+      </select>
+      <div id="signup-part-other-wrap" style="display:none;">
+        <input class="form-input" id="signup-part-other" placeholder="パートを入力">
+      </div>
+      <label class="form-label">メールアドレス</label>
+      <input class="form-input" id="signup-email" type="email" placeholder="your@email.com">
+      <label class="form-label">パスワード（6文字以上）</label>
+      <input class="form-input" id="signup-pass" type="password" placeholder="パスワード">
+      <button class="submit-btn" onclick="doSignup()">登録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ App ═══ -->
 <div id="app">
 
-  <!-- ═══ HOME ═══ -->
-  <div id="screen-home" class="screen active">
+  <!-- HOME -->
+  <div id="screen-home" class="screen">
     <div class="home-hero">
       <h1>Groovy <span>会計</span></h1>
       <div class="underline"></div>
     </div>
+    <div id="user-bar-home" class="user-bar">
+      <div>
+        <div class="user-bar-name" id="home-user-name">---</div>
+        <div style="margin-top:3px;"><span class="user-bar-role" id="home-user-role">---</span></div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+    </div>
     <button class="menu-btn" onclick="go('buhi')"><span class="icon">💰</span> 部費集金</button>
+    <button class="menu-btn" onclick="go('event')"><span class="icon">🎉</span> 特別徴収（イベント費）</button>
     <button class="menu-btn" onclick="go('repair')"><span class="icon">🎺</span> 楽器修理</button>
     <button class="menu-btn" onclick="go('extra')"><span class="icon">🚗</span> エキストラ交通費</button>
     <button class="menu-btn" onclick="go('other')"><span class="icon">📝</span> その他出費</button>
-    <div style="background:var(--bg3);border-radius:var(--radius);padding:18px;margin-top:6px;">
+    <!-- Admin only -->
+    <div id="admin-dashboard-btn" style="display:none;">
+      <button class="dashboard-btn" onclick="openDashboard()">📊 サークル財政ダッシュボード</button>
+    </div>
+    <!-- 口座情報 -->
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:18px;margin-top:4px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
         <span style="font-size:18px;">🏦</span>
         <span style="font-size:14px;font-weight:700;color:var(--text2);">振込口座情報</span>
       </div>
       <div style="display:grid;gap:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:10px;">
-          <span style="font-size:13px;color:var(--text3);">銀行</span>
-          <span style="font-size:15px;font-weight:600;">りそな銀行</span>
+          <span style="font-size:13px;color:var(--text3);">銀行</span><span style="font-size:15px;font-weight:600;">りそな銀行</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:10px;">
-          <span style="font-size:13px;color:var(--text3);">支店</span>
-          <span style="font-size:15px;font-weight:600;">本郷支店</span>
+          <span style="font-size:13px;color:var(--text3);">支店</span><span style="font-size:15px;font-weight:600;">本郷支店</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:10px;">
           <span style="font-size:13px;color:var(--text3);">口座名義</span>
@@ -258,7 +412,7 @@
     <div style="height:24px;"></div>
   </div>
 
-  <!-- ═══ 部費集金 ═══ -->
+  <!-- 部費集金 -->
   <div id="screen-buhi" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('home')">← ホームに戻る</button>
@@ -269,7 +423,7 @@
       <button class="tab-btn" id="tab-btn-member" onclick="switchBuhiTab('member')">メンバー追加</button>
       <button class="tab-btn" id="tab-btn-history" onclick="switchBuhiTab('history')">月別履歴</button>
     </div>
-    <!-- タブ①: 回収状況 -->
+    <!-- 回収状況 -->
     <div class="tab-panel active" id="tab-collect">
       <div id="deadline-card" style="border-radius:var(--radius);padding:14px 18px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg3);">
         <div style="display:flex;align-items:center;gap:10px;flex:1;">
@@ -280,7 +434,7 @@
             <div id="deadline-remaining" style="font-size:12px;margin-top:2px;color:var(--text3);">期日を設定してください</div>
           </div>
         </div>
-        <button onclick="openDeadlineEdit()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:12px;padding:6px 12px;cursor:pointer;white-space:nowrap;">変更</button>
+        <button id="deadline-change-btn" onclick="openDeadlineEdit()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:12px;padding:6px 12px;cursor:pointer;white-space:nowrap;display:none;">変更</button>
       </div>
       <div class="card">
         <div class="progress-big">
@@ -291,22 +445,38 @@
         </div>
       </div>
       <div id="buhi-list"></div>
-      <button class="save-month-btn" onclick="saveMonthSnapshot()">今月の状況を保存する</button>
+      <div id="buhi-admin-actions" style="display:none;">
+        <button class="save-month-btn" onclick="saveMonthSnapshot()">今月の状況を保存する</button>
+      </div>
     </div>
-    <!-- タブ②: メンバー追加 -->
+    <!-- メンバー追加（admin only） -->
     <div class="tab-panel" id="tab-member">
-      <div class="card">
+      <div id="member-add-form" class="card" style="display:none;">
         <div style="font-size:16px;font-weight:700;margin-bottom:16px;">メンバーを追加</div>
         <label class="form-label">名前</label>
         <input class="form-input" id="buhi-add-name" placeholder="例: 山田 太郎">
         <label class="form-label">パート</label>
-        <input class="form-input" id="buhi-add-part" placeholder="例: トランペット">
+        <select class="form-input" id="buhi-add-part" onchange="onPartChange('buhi-add-part','buhi-part-other-wrap')">
+          <option value="サックス">サックス</option>
+          <option value="トロンボーン">トロンボーン</option>
+          <option value="トランペット">トランペット</option>
+          <option value="リズム">リズム</option>
+          <option value="その他">その他</option>
+        </select>
+        <div id="buhi-part-other-wrap" style="display:none;">
+          <input class="form-input" id="buhi-add-part-other" placeholder="パートを入力">
+        </div>
         <button class="submit-btn" onclick="addBuhiMember()">追加する</button>
       </div>
-      <div style="font-size:14px;font-weight:700;color:var(--text2);margin-bottom:10px;">現在のメンバー（<span id="member-count">0</span>人）</div>
+      <div id="member-readonly-notice" class="card" style="display:none;">
+        <div style="font-size:14px;color:var(--text2);">📋 メンバーの追加は管理者のみ可能です。</div>
+      </div>
+      <div style="font-size:14px;font-weight:700;color:var(--text2);margin-bottom:10px;">
+        現在のメンバー（<span id="member-count">0</span>人）
+      </div>
       <div id="buhi-member-list"></div>
     </div>
-    <!-- タブ③: 月別履歴 -->
+    <!-- 月別履歴 -->
     <div class="tab-panel" id="tab-history">
       <div class="month-select-row">
         <button class="month-nav" onclick="histMove(-1)">←</button>
@@ -318,7 +488,46 @@
     </div>
   </div>
 
-  <!-- ═══ 楽器修理 ═══ -->
+  <!-- 特別徴収（イベント費） -->
+  <div id="screen-event" class="screen">
+    <div class="page-header">
+      <button class="back-btn" onclick="go('home')">← ホームに戻る</button>
+      <div class="page-title">特別徴収（イベント費）</div>
+    </div>
+    <div id="event-admin-create" style="display:none;">
+      <div class="card">
+        <div style="font-size:15px;font-weight:700;margin-bottom:14px;">＋ 新しい集金項目を作成</div>
+        <label class="form-label">タイトル（例：夏合宿費）</label>
+        <input class="form-input" id="ev-title" placeholder="例: 夏合宿費">
+        <label class="form-label">金額（円）</label>
+        <input class="form-input" id="ev-amount" type="number" placeholder="例: 15000">
+        <label class="form-label">期限</label>
+        <input class="form-input" id="ev-deadline" type="date">
+        <label class="form-label">説明（任意）</label>
+        <input class="form-input" id="ev-desc" placeholder="例: 8/10〆切、現金で会計へ">
+        <button class="submit-btn" onclick="createEventCollection()">作成する</button>
+      </div>
+    </div>
+    <div class="section-header">
+      <div class="section-title">集金項目一覧</div>
+    </div>
+    <div id="event-list"></div>
+  </div>
+
+  <!-- イベント詳細 -->
+  <div id="screen-event-detail" class="screen">
+    <div class="page-header">
+      <button class="back-btn" onclick="go('event')">← 一覧に戻る</button>
+      <div class="page-title" id="event-detail-title">詳細</div>
+    </div>
+    <div class="card" id="event-detail-info"></div>
+    <div id="event-detail-list"></div>
+    <div id="event-admin-archive" style="display:none;margin-top:8px;">
+      <button class="blue-btn" onclick="archiveCurrentEvent()">📦 この項目をアーカイブ</button>
+    </div>
+  </div>
+
+  <!-- 楽器修理 -->
   <div id="screen-repair" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('home')">← ホームに戻る</button>
@@ -328,22 +537,24 @@
     <button class="blue-btn" onclick="go('repair-upload')">1. 領収書アップロード</button>
     <button class="blue-btn" onclick="go('repair-ai')">2. AI見積もり</button>
     <button class="blue-btn" onclick="go('repair-history')">3. 部費利用状況</button>
-    <button class="purple-btn" onclick="go('repair-admin')">👤 修理申請履歴（管理者）</button>
+    <div id="repair-admin-btn" style="display:none;">
+      <button class="purple-btn" onclick="go('repair-admin')">👤 修理申請履歴（管理者）</button>
+    </div>
   </div>
 
-  <!-- ═══ 領収書カンペ ═══ -->
+  <!-- 領収書カンペ -->
   <div id="screen-repair-kanpe" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('repair')">← メニューに戻る</button>
     </div>
     <div style="background:#fff;border:3px solid var(--accent);border-radius:20px;padding:40px 24px;text-align:center;margin-top:20px;">
       <div style="font-size:14px;color:#666;margin-bottom:12px;">領収書の宛名</div>
-      <div style="font-size:44px;font-weight:900;color:#0d1b2e;line-height:1.2;">東洋大学<br>Groovy Sounds<br>Jazz Orchestra</div>
+      <div style="font-size:40px;font-weight:900;color:#0d1b2e;line-height:1.2;">東洋大学<br>Groovy Sounds<br>Jazz Orchestra</div>
     </div>
     <button class="blue-btn" style="margin-top:20px;" onclick="go('repair')">閉じる</button>
   </div>
 
-  <!-- ═══ 領収書アップロード ═══ -->
+  <!-- 領収書アップロード -->
   <div id="screen-repair-upload" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('repair')">← メニューに戻る</button>
@@ -384,7 +595,7 @@
     </div>
   </div>
 
-  <!-- ═══ AI見積もり ═══ -->
+  <!-- AI見積もり -->
   <div id="screen-repair-ai" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('repair')">← メニューに戻る</button>
@@ -412,7 +623,7 @@
     </div>
   </div>
 
-  <!-- ═══ 修理申請履歴（管理者） ═══ -->
+  <!-- 修理申請履歴（管理者） -->
   <div id="screen-repair-admin" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('repair')">← メニューに戻る</button>
@@ -425,7 +636,7 @@
     <div id="repair-history-list"></div>
   </div>
 
-  <!-- ═══ 部費利用状況 ═══ -->
+  <!-- 部費利用状況 -->
   <div id="screen-repair-history" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('repair')">← メニューに戻る</button>
@@ -434,7 +645,7 @@
     <div id="repair-usage-list"></div>
   </div>
 
-  <!-- ═══ エキストラ交通費 ═══ -->
+  <!-- エキストラ交通費 -->
   <div id="screen-extra" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('home')">← ホームに戻る</button>
@@ -458,17 +669,17 @@
     </div>
     <div class="section-header" style="margin-top:6px;">
       <div class="section-title">エキストラプレーヤー</div>
-      <button class="add-link" onclick="openAddPlayer()">+ 追加</button>
+      <button class="add-link" id="extra-add-btn" onclick="openAddPlayer()" style="display:none;">+ 追加</button>
     </div>
     <div id="extra-player-list"></div>
     <div class="divider"></div>
     <div class="total-footer">
-      <div class="tf-label">合計交通費（往復）</div>
+      <div class="tf-label">合計交通費（往復＋手動加算）</div>
       <div class="tf-val" id="extra-grand-total">¥0</div>
     </div>
   </div>
 
-  <!-- ═══ その他出費 ═══ -->
+  <!-- その他出費 -->
   <div id="screen-other" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('home')">← ホームに戻る</button>
@@ -479,7 +690,7 @@
       <label class="form-label">名前</label>
       <input class="form-input" id="other-name" placeholder="例: 山田太郎">
       <label class="form-label">内容</label>
-      <textarea class="form-input" id="other-content" placeholder="例: 譜面購入、スタジオレンタル、楽器アクセサリーなど"></textarea>
+      <textarea class="form-input" id="other-content" placeholder="例: 譜面購入、スタジオレンタル など"></textarea>
       <label class="form-label">金額（円）</label>
       <input class="form-input" id="other-amount" type="number" placeholder="例: 5000">
       <button class="submit-btn" id="other-submit-btn" onclick="submitOther()" style="background:var(--bg4);color:var(--text2);">申請する</button>
@@ -514,6 +725,9 @@
     <input class="form-input" id="ap-part" placeholder="例: トランペット">
     <label class="form-label">片道交通費（円）</label>
     <input class="form-input" id="ap-fee" type="number" placeholder="例: 1500">
+    <label class="form-label">手動加算額（任意・イレギュラー分）</label>
+    <input class="form-input" id="ap-manual-fee" type="number" placeholder="例: 500">
+    <input class="form-input" id="ap-manual-note" placeholder="備考（例: 定期区間外）" style="margin-top:-8px;">
     <label class="form-label">領収証</label>
     <div class="upload-box" style="padding:18px;">
       <input type="file" accept="image/*,.pdf" id="ap-receipt-input" onchange="onApReceiptChange(this)">
@@ -538,6 +752,55 @@
   </div>
 </div>
 
+<!-- 財政ダッシュボード -->
+<div class="dash-modal" id="dashboard-modal">
+  <div class="dash-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="dash-title" style="margin-bottom:0;">📊 財政ダッシュボード</div>
+      <button onclick="closeDashboard()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;">✕</button>
+    </div>
+    <div class="dash-grid">
+      <div class="dash-item full">
+        <div class="dash-item-label">💰 預金残高</div>
+        <div class="dash-item-val green" id="dash-balance">¥0</div>
+        <div class="dash-edit-row">
+          <input class="dash-edit-input" id="dash-balance-input" type="number" placeholder="金額を入力">
+          <button class="dash-edit-btn" onclick="saveDashField('balance','dash-balance-input')">更新</button>
+        </div>
+      </div>
+      <div class="dash-item">
+        <div class="dash-item-label">📈 今月収入予定</div>
+        <div class="dash-item-val amber" id="dash-income">¥0</div>
+        <div class="dash-edit-row">
+          <input class="dash-edit-input" id="dash-income-input" type="number" placeholder="上書き">
+          <button class="dash-edit-btn" onclick="saveDashField('income_manual','dash-income-input')">更新</button>
+        </div>
+      </div>
+      <div class="dash-item">
+        <div class="dash-item-label">📉 今月支出</div>
+        <div class="dash-item-val red" id="dash-expense">¥0</div>
+        <div class="dash-edit-row">
+          <input class="dash-edit-input" id="dash-expense-input" type="number" placeholder="修正値">
+          <button class="dash-edit-btn" onclick="saveDashField('expense_manual','dash-expense-input')">修正</button>
+        </div>
+      </div>
+      <div class="dash-item full">
+        <div class="dash-item-label">📋 今月の申請件数</div>
+        <div style="display:flex;gap:16px;margin-top:6px;">
+          <div><div style="font-size:11px;color:var(--text3);">楽器修理</div><div style="font-size:20px;font-weight:700;" id="dash-repair-count">0件</div></div>
+          <div><div style="font-size:11px;color:var(--text3);">その他出費</div><div style="font-size:20px;font-weight:700;" id="dash-other-count">0件</div></div>
+          <div><div style="font-size:11px;color:var(--text3);">エキストラ</div><div style="font-size:20px;font-weight:700;" id="dash-extra-count">0件</div></div>
+        </div>
+      </div>
+      <div class="dash-item full">
+        <div class="dash-item-label">メモ</div>
+        <textarea class="form-input" id="dash-note-input" style="margin-bottom:8px;height:70px;"></textarea>
+        <button class="dash-edit-btn" style="width:100%;" onclick="saveDashNote()">メモを保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="dialog-overlay" id="confirm-dialog">
   <div class="dialog-box">
     <div class="dialog-msg" id="confirm-msg"></div>
@@ -551,65 +814,194 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 // SUPABASE CONFIG
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://ndxbssyqahlxmxwhypwz.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5keGJzc3lxYWhseG14d2h5cHd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5Nzk0OTYsImV4cCI6MjA5MjU1NTQ5Nn0.ka1W5x0lNnpfhfFDpsYE3BdTyTOwU13XRaBgw1jn5ok';
 
-const headers = {
-  'Content-Type': 'application/json',
-  'apikey': SUPABASE_KEY,
-  'Authorization': 'Bearer ' + SUPABASE_KEY,
-  'Prefer': 'return=representation'
-};
+// ══════════════════════════════════════════════════════
+// LINE NOTIFY CONFIG
+// 以下のトークンをLINE Notifyで取得したものに書き換えてください
+// https://notify-bot.line.me/ja/manage
+// ══════════════════════════════════════════════════════
+const LINE_TOKEN = 'ZvSlpclmJ4uedih92y0jltto+8egkPwGjJqKgqkbgBDGzAa3bKVMlyANlOy7oxdyIukJsqpPlvHY91hqr1KKUWxWT/hHtZKI8Aod7g2cwORqgcU/LrKA/j22+RLylZr/ZolxHcaYdY2jjtI/Vz34JQdB04t89/1O/w1cDnyilFU=';
 
-async function dbGet(table, params = '') {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+// ══════════════════════════════════════════════════════
+// HTTP HELPERS
+// ══════════════════════════════════════════════════════
+function getHeaders(token) {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + (token || SUPABASE_KEY),
+    'Prefer': 'return=representation'
+  };
 }
-async function dbInsert(table, data) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST', headers,
+async function dbGet(table, params='', token) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: getHeaders(token) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function dbInsert(table, data, token) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method:'POST', headers: getHeaders(token), body: JSON.stringify(data)
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function dbUpdate(table, data, params, token) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+    method:'PATCH', headers: getHeaders(token), body: JSON.stringify(data)
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function dbDelete(table, params, token) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+    method:'DELETE', headers: getHeaders(token)
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
+async function dbUpsert(table, data, onConflict, token) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
+    method:'POST',
+    headers: { ...getHeaders(token), 'Prefer': 'resolution=merge-duplicates,return=representation' },
     body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-async function dbUpdate(table, data, params) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-    method: 'PATCH', headers,
-    body: JSON.stringify(data)
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-async function dbDelete(table, params) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
-    method: 'DELETE', headers
-  });
-  if (!res.ok) throw new Error(await res.text());
-}
-async function dbUpsert(table, data, onConflict) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
-    method: 'POST',
-    headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=representation' },
-    body: JSON.stringify(data)
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
 }
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// LINE NOTIFY
+// ══════════════════════════════════════════════════════
+async function sendLineNotify(message) {
+  // CORS制限のためプロキシ経由が必要な場合があります
+  // 本番環境ではSupabase Edge Functionを経由することを推奨します
+  try {
+    await fetch('https://notify-api.line.me/api/notify', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + LINE_TOKEN,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'message=' + encodeURIComponent(message),
+      mode: 'no-cors' // CORSをバイパス（レスポンスは読めないが送信は可能）
+    });
+  } catch(e) {
+    console.warn('LINE通知送信:', e);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// AUTH STATE
+// ══════════════════════════════════════════════════════
+let currentUser = null;   // Supabase auth user
+let currentProfile = null; // profiles row
+let accessToken = null;
+
+function isAdmin() { return currentProfile?.role === 'admin'; }
+
+// ══════════════════════════════════════════════════════
+// AUTH FUNCTIONS
+// ══════════════════════════════════════════════════════
+function switchAuthTab(tab) {
+  document.getElementById('auth-login-panel').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('auth-signup-panel').style.display = tab === 'signup' ? 'block' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='signup')));
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  if (!email||!pass) { showToast('メールとパスワードを入力してください',true); return; }
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
+      body: JSON.stringify({email, password: pass})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error_description || data.msg || 'ログイン失敗');
+    await onLoginSuccess(data);
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function doSignup() {
+  const name = document.getElementById('signup-name').value.trim();
+  const partSel = document.getElementById('signup-part').value;
+  const partOther = document.getElementById('signup-part-other').value.trim();
+  const part = partSel === 'その他' ? (partOther || 'その他') : partSel;
+  const email = document.getElementById('signup-email').value.trim();
+  const pass = document.getElementById('signup-pass').value;
+  if (!name||!email||!pass) { showToast('全項目を入力してください',true); return; }
+  if (pass.length < 6) { showToast('パスワードは6文字以上です',true); return; }
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
+      body: JSON.stringify({email, password: pass})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error_description || data.msg || '登録失敗');
+    if (data.access_token) {
+      // update profile with name and part
+      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${data.user.id}`, {
+        method:'PATCH',
+        headers:{...getHeaders(data.access_token)},
+        body: JSON.stringify({name, part})
+      });
+      await onLoginSuccess(data);
+    } else {
+      showToast('確認メールを送信しました。メールを確認してください。');
+    }
+  } catch(e) { showToast(e.message, true); }
+}
+
+async function onLoginSuccess(data) {
+  accessToken = data.access_token;
+  currentUser = data.user;
+  // fetch profile
+  const profiles = await dbGet('profiles', `id=eq.${currentUser.id}`, accessToken);
+  currentProfile = profiles[0] || { role: 'member', name: currentUser.email };
+  // if admin email, ensure admin role
+  if (currentUser.email === 'groovy2026blue@gmail.com' && currentProfile.role !== 'admin') {
+    await dbUpdate('profiles', { role: 'admin' }, `id=eq.${currentUser.id}`, accessToken);
+    currentProfile.role = 'admin';
+  }
+  document.getElementById('auth-overlay').classList.add('hidden');
+  await init();
+}
+
+async function doLogout() {
+  try {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+      method:'POST', headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+accessToken}
+    });
+  } catch(e) {}
+  currentUser = null; currentProfile = null; accessToken = null;
+  buhi=[]; repairHistory=[]; extraPlayers=[]; otherHistory=[]; monthlySnapshots=[]; eventCollections=[];
+  document.getElementById('auth-overlay').classList.remove('hidden');
+  go('home');
+}
+
+// パート「その他」選択時に入力欄表示
+function onPartChange(selectId, wrapId) {
+  const v = document.getElementById(selectId).value;
+  document.getElementById(wrapId).style.display = v === 'その他' ? 'block' : 'none';
+}
+
+// ══════════════════════════════════════════════════════
 // STATE
-// ═══════════════════════════════════════════════════════════
-let buhi = [];          // {id, name, part, paid(current month)}
-let buhiPayments = {};  // key: member_id → payment row id
+// ══════════════════════════════════════════════════════
+let buhi = [];
 let repairHistory = [];
 let extraPlayers = [];
 let otherHistory = [];
 let monthlySnapshots = [];
+let eventCollections = [];
+let dashboardData = null;
 let deadlineDate = null;
 let apReceiptFile = null;
 let buhiTab = 'collect';
@@ -617,222 +1009,230 @@ let histViewYear = new Date().getFullYear();
 let histViewMonth = new Date().getMonth();
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
-const chkState = { chk1: false, chk2: false };
-
 const NOW_YEAR = new Date().getFullYear();
 const NOW_MONTH = new Date().getMonth();
+let currentEventId = null;
+const chkState = { chk1: false, chk2: false };
 
-// ═══════════════════════════════════════════════════════════
-// INIT — load all data
-// ═══════════════════════════════════════════════════════════
-async function init() {
-  try {
-    await Promise.all([
-      loadMembers(),
-      loadRepairHistory(),
-      loadExtraPlayers(),
-      loadOtherHistory(),
-      loadSnapshots(),
-      loadSettings(),
-    ]);
-    renderCalendar();
-    renderDeadlineCard();
-    renderOtherHistory();
-  } catch(e) {
-    showToast('読み込みエラー: ' + e.message, true);
-    console.error(e);
-  }
-  document.getElementById('loading-overlay').classList.add('hidden');
-}
-
-// ─── Members & Payments ───────────────────────────────────
-async function loadMembers() {
-  const members = await dbGet('members', 'order=id.asc');
-  // load current month payments
-  const payments = await dbGet('buhi_payments',
-    `year=eq.${NOW_YEAR}&month=eq.${NOW_MONTH}`);
-  const payMap = {};
-  payments.forEach(p => { payMap[p.member_id] = { paid: p.paid, rowId: p.id }; });
-
-  buhi = members.map(m => ({
-    id: m.id, name: m.name, part: m.part,
-    paid: payMap[m.id]?.paid ?? false,
-    payRowId: payMap[m.id]?.rowId ?? null
-  }));
-  buhiPayments = payMap;
-}
-
-async function loadRepairHistory() {
-  repairHistory = await dbGet('repair_requests', 'order=created_at.desc');
-}
-async function loadExtraPlayers() {
-  extraPlayers = await dbGet('extra_players', 'order=created_at.asc');
-}
-async function loadOtherHistory() {
-  otherHistory = await dbGet('other_expenses', 'order=created_at.desc');
-}
-async function loadSnapshots() {
-  monthlySnapshots = await dbGet('buhi_snapshots', 'order=year.desc,month.desc');
-  monthlySnapshots = monthlySnapshots.map(s => ({
-    ...s, members: s.members_json || []
-  }));
-}
-async function loadSettings() {
-  try {
-    const rows = await dbGet('settings', '');
-    rows.forEach(r => {
-      if (r.key === 'deadline' && r.value) deadlineDate = new Date(r.value);
-    });
-  } catch(e) { /* ignore */ }
-}
-
-// ═══════════════════════════════════════════════════════════
-// NAVIGATION
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// NAVIGATION  ← 画面遷移バグ修正済み
+// ══════════════════════════════════════════════════════
 function go(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  // 全スクリーンを確実に非表示
+  document.querySelectorAll('.screen').forEach(s => {
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
   const el = document.getElementById('screen-' + id);
-  if (el) { el.classList.add('active'); el.scrollTop = 0; }
+  if (el) {
+    el.style.display = 'block';
+    el.classList.add('active');
+    el.scrollTop = 0;
+  }
+  // 画面ごとの初期化
   if (id === 'buhi') switchBuhiTab('collect');
   if (id === 'extra') { renderCalendar(); renderExtraPlayers(); }
   if (id === 'repair-admin') renderRepairAdmin();
   if (id === 'repair-history') renderRepairUsage();
   if (id === 'other') renderOtherHistory();
+  if (id === 'event') renderEventList();
+  if (id === 'home') renderHome();
 }
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+async function init() {
+  document.getElementById('loading-overlay').classList.remove('hidden');
+  try {
+    await Promise.all([
+      loadMembers(), loadRepairHistory(), loadExtraPlayers(),
+      loadOtherHistory(), loadSnapshots(), loadSettings(),
+      loadDashboard(), loadEventCollections()
+    ]);
+    renderHome();
+    go('home');
+  } catch(e) {
+    showToast('読み込みエラー: '+e.message, true);
+    console.error(e);
+  }
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+function renderHome() {
+  const name = currentProfile?.name || currentUser?.email || '---';
+  const role = isAdmin() ? '管理者' : '一般部員';
+  document.getElementById('home-user-name').textContent = name + ' さん';
+  const roleEl = document.getElementById('home-user-role');
+  roleEl.textContent = role;
+  roleEl.className = 'user-bar-role ' + (isAdmin() ? 'role-admin' : 'role-member');
+  document.getElementById('admin-dashboard-btn').style.display = isAdmin() ? 'block' : 'none';
+}
+
+// ══════════════════════════════════════════════════════
+// LOAD FUNCTIONS
+// ══════════════════════════════════════════════════════
+async function loadMembers() {
+  const members = await dbGet('members','order=id.asc', accessToken);
+  const payments = await dbGet('buhi_payments',`year=eq.${NOW_YEAR}&month=eq.${NOW_MONTH}`, accessToken);
+  const payMap = {};
+  payments.forEach(p => { payMap[p.member_id] = { paid: p.paid, rowId: p.id }; });
+  buhi = members.map(m => ({
+    id: m.id, name: m.name, part: m.part,
+    paid: payMap[m.id]?.paid ?? false,
+    payRowId: payMap[m.id]?.rowId ?? null
+  }));
+}
+async function loadRepairHistory() {
+  repairHistory = await dbGet('repair_requests','order=created_at.desc', accessToken);
+}
+async function loadExtraPlayers() {
+  extraPlayers = await dbGet('extra_players','order=created_at.asc', accessToken);
+}
+async function loadOtherHistory() {
+  otherHistory = await dbGet('other_expenses','order=created_at.desc', accessToken);
+}
+async function loadSnapshots() {
+  const rows = await dbGet('buhi_snapshots','order=year.desc,month.desc', accessToken);
+  monthlySnapshots = rows.map(s => ({ ...s, members: s.members_json || [] }));
+}
+async function loadSettings() {
+  try {
+    const rows = await dbGet('settings','', accessToken);
+    rows.forEach(r => { if (r.key==='deadline'&&r.value) deadlineDate = new Date(r.value); });
+  } catch(e) {}
+}
+async function loadDashboard() {
+  try {
+    const rows = await dbGet('finance_dashboard','order=id.asc&limit=1', accessToken);
+    dashboardData = rows[0] || null;
+  } catch(e) {}
+}
+async function loadEventCollections() {
+  eventCollections = await dbGet('event_collections','archived=eq.false&order=created_at.desc', accessToken);
+}
+
+// ══════════════════════════════════════════════════════
 // 部費集金
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 function switchBuhiTab(tab) {
   buhiTab = tab;
   ['collect','member','history'].forEach(t => {
-    document.getElementById('tab-btn-' + t).classList.toggle('active', t === tab);
-    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('tab-btn-'+t).classList.toggle('active', t===tab);
+    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
   });
-  if (tab === 'collect') { renderBuhi(); renderDeadlineCard(); }
-  if (tab === 'member') renderBuhiMemberList();
-  if (tab === 'history') { histViewYear = NOW_YEAR; histViewMonth = NOW_MONTH; renderBuhiHistory(); }
+  if (tab==='collect') { renderBuhi(); renderDeadlineCard(); }
+  if (tab==='member') renderBuhiMemberList();
+  if (tab==='history') { histViewYear=NOW_YEAR; histViewMonth=NOW_MONTH; renderBuhiHistory(); }
 }
 
 function renderBuhi() {
-  const paid = buhi.filter(m => m.paid).length;
+  const paid = buhi.filter(m=>m.paid).length;
   const total = buhi.length;
-  const pct = total ? Math.round(paid / total * 100) : 0;
-  document.getElementById('buhi-num').innerHTML = paid + ' <span>/ ' + total + '</span>';
-  document.getElementById('buhi-bar').style.width = pct + '%';
-  document.getElementById('buhi-pct').textContent = pct + '%';
-  document.getElementById('buhi-list').innerHTML = buhi.map((m, i) => `
+  const pct = total ? Math.round(paid/total*100) : 0;
+  document.getElementById('buhi-num').innerHTML = paid+' <span>/ '+total+'</span>';
+  document.getElementById('buhi-bar').style.width = pct+'%';
+  document.getElementById('buhi-pct').textContent = pct+'%';
+  // admin controls
+  document.getElementById('deadline-change-btn').style.display = isAdmin() ? 'inline-block' : 'none';
+  document.getElementById('buhi-admin-actions').style.display = isAdmin() ? 'block' : 'none';
+  document.getElementById('buhi-list').innerHTML = buhi.map((m,i) => `
     <div class="member-row">
       <div><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
-      <button class="toggle ${m.paid ? 'on' : ''}" onclick="toggleBuhi(${i})"></button>
+      <button class="toggle ${m.paid?'on':''}" onclick="toggleBuhi(${i})" ${!isAdmin()?'disabled':''}></button>
     </div>`).join('');
 }
 
 async function toggleBuhi(i) {
+  if (!isAdmin()) { showToast('管理者のみ操作できます',true); return; }
   const m = buhi[i];
   const newPaid = !m.paid;
   m.paid = newPaid;
   renderBuhi();
   try {
     if (m.payRowId) {
-      await dbUpdate('buhi_payments', { paid: newPaid }, `id=eq.${m.payRowId}`);
+      await dbUpdate('buhi_payments',{paid:newPaid},`id=eq.${m.payRowId}`, accessToken);
     } else {
-      const rows = await dbInsert('buhi_payments', {
-        member_id: m.id, year: NOW_YEAR, month: NOW_MONTH, paid: newPaid
-      });
-      if (rows && rows[0]) { m.payRowId = rows[0].id; buhi[i].payRowId = rows[0].id; }
+      const rows = await dbInsert('buhi_payments',{member_id:m.id,year:NOW_YEAR,month:NOW_MONTH,paid:newPaid}, accessToken);
+      if (rows&&rows[0]) { m.payRowId=rows[0].id; buhi[i].payRowId=rows[0].id; }
     }
-  } catch(e) {
-    m.paid = !newPaid; renderBuhi();
-    showToast('保存失敗: ' + e.message, true);
-  }
+  } catch(e) { m.paid=!newPaid; renderBuhi(); showToast('保存失敗: '+e.message,true); }
 }
 
 async function addBuhiMember() {
   const name = document.getElementById('buhi-add-name').value.trim();
-  const part = document.getElementById('buhi-add-part').value.trim();
+  const partSel = document.getElementById('buhi-add-part').value;
+  const partOther = document.getElementById('buhi-add-part-other').value.trim();
+  const part = partSel==='その他' ? (partOther||'その他') : partSel;
   if (!name) { showToast('名前を入力してください'); return; }
   try {
-    const rows = await dbInsert('members', { name, part: part || '未設定' });
-    if (rows && rows[0]) {
-      buhi.push({ id: rows[0].id, name: rows[0].name, part: rows[0].part, paid: false, payRowId: null });
-    }
-    document.getElementById('buhi-add-name').value = '';
-    document.getElementById('buhi-add-part').value = '';
-    renderBuhiMemberList();
-    renderBuhi();
-    showToast(name + ' を追加しました！');
-  } catch(e) { showToast('追加失敗: ' + e.message, true); }
+    const rows = await dbInsert('members',{name, part}, accessToken);
+    if (rows&&rows[0]) buhi.push({id:rows[0].id,name:rows[0].name,part:rows[0].part,paid:false,payRowId:null});
+    document.getElementById('buhi-add-name').value='';
+    renderBuhiMemberList(); renderBuhi();
+    showToast(name+' を追加しました！');
+  } catch(e) { showToast('追加失敗: '+e.message,true); }
 }
 
 async function removeBuhiMember(i) {
-  showConfirm(buhi[i].name + ' を削除しますか？', async () => {
-    const m = buhi[i];
+  showConfirm(buhi[i].name+' を削除しますか？', async () => {
     try {
-      await dbDelete('members', `id=eq.${m.id}`);
-      buhi.splice(i, 1);
-      renderBuhiMemberList();
-      renderBuhi();
-    } catch(e) { showToast('削除失敗: ' + e.message, true); }
+      await dbDelete('members',`id=eq.${buhi[i].id}`, accessToken);
+      buhi.splice(i,1);
+      renderBuhiMemberList(); renderBuhi();
+    } catch(e) { showToast('削除失敗: '+e.message,true); }
   });
 }
 
 function renderBuhiMemberList() {
+  // admin/member表示切り替え
+  document.getElementById('member-add-form').style.display = isAdmin() ? 'block' : 'none';
+  document.getElementById('member-readonly-notice').style.display = isAdmin() ? 'none' : 'block';
   document.getElementById('member-count').textContent = buhi.length;
   const list = document.getElementById('buhi-member-list');
   if (!buhi.length) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:14px;">メンバーがいません</div>';
+    list.innerHTML='<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:14px;">メンバーがいません</div>';
     return;
   }
-  list.innerHTML = buhi.map((m, i) => `
+  list.innerHTML = buhi.map((m,i) => `
     <div class="member-row">
       <div style="flex:1;"><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
-      <button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removeBuhiMember(${i})">削除</button>
+      ${isAdmin()?`<button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removeBuhiMember(${i})">削除</button>`:''}
     </div>`).join('');
 }
 
 async function saveMonthSnapshot() {
-  const label = NOW_YEAR + '年' + (NOW_MONTH + 1) + '月';
-  showConfirm(
-    label + 'の集金は終わりましたか？\n保存すると全員の支払い状況がリセットされ、月別履歴に記録されます。',
-    async () => {
-      const membersJson = buhi.map(m => ({ name: m.name, part: m.part, paid: m.paid }));
-      try {
-        await dbUpsert('buhi_snapshots', {
-          year: NOW_YEAR, month: NOW_MONTH, label, members_json: membersJson
-        }, 'year,month');
-        // reset payments in DB
-        await Promise.all(buhi.map(m => {
-          if (m.payRowId) return dbUpdate('buhi_payments', { paid: false }, `id=eq.${m.payRowId}`);
-          return Promise.resolve();
-        }));
-        buhi.forEach(m => m.paid = false);
-        renderBuhi();
-        await loadSnapshots();
-        showToast(label + 'の集金状況を保存しました！');
-      } catch(e) { showToast('保存失敗: ' + e.message, true); }
-    }
-  );
+  const label = NOW_YEAR+'年'+(NOW_MONTH+1)+'月';
+  showConfirm(label+'の集金は終わりましたか？\n保存すると全員の支払い状況がリセットされ、月別履歴に記録されます。', async () => {
+    try {
+      const membersJson = buhi.map(m=>({name:m.name,part:m.part,paid:m.paid}));
+      await dbUpsert('buhi_snapshots',{year:NOW_YEAR,month:NOW_MONTH,label,members_json:membersJson},'year,month', accessToken);
+      await Promise.all(buhi.map(m => m.payRowId ? dbUpdate('buhi_payments',{paid:false},`id=eq.${m.payRowId}`, accessToken) : Promise.resolve()));
+      buhi.forEach(m=>m.paid=false);
+      renderBuhi();
+      await loadSnapshots();
+      showToast(label+'の集金状況を保存しました！');
+    } catch(e) { showToast('保存失敗: '+e.message,true); }
+  });
 }
 
-// ── 月別履歴 ──
 function histMove(dir) {
-  histViewMonth += dir;
-  if (histViewMonth < 0) { histViewMonth = 11; histViewYear--; }
-  if (histViewMonth > 11) { histViewMonth = 0; histViewYear++; }
+  histViewMonth+=dir;
+  if (histViewMonth<0){histViewMonth=11;histViewYear--;}
+  if (histViewMonth>11){histViewMonth=0;histViewYear++;}
   renderBuhiHistory();
 }
 function renderBuhiHistory() {
-  const label = histViewYear + '年' + (histViewMonth + 1) + '月';
+  const label = histViewYear+'年'+(histViewMonth+1)+'月';
   document.getElementById('hist-month-label').textContent = label;
-  const snap = monthlySnapshots.find(s => s.year === histViewYear && s.month === histViewMonth);
+  const snap = monthlySnapshots.find(s=>s.year===histViewYear&&s.month===histViewMonth);
   const listEl = document.getElementById('buhi-history-list');
   const noEl = document.getElementById('buhi-no-history');
-  if (!snap) { listEl.innerHTML = ''; noEl.style.display = 'block'; return; }
-  noEl.style.display = 'none';
-  const paid = snap.members.filter(m => m.paid).length;
+  if (!snap) { listEl.innerHTML=''; noEl.style.display='block'; return; }
+  noEl.style.display='none';
+  const paid = snap.members.filter(m=>m.paid).length;
   const total = snap.members.length;
-  const pct = total ? Math.round(paid / total * 100) : 0;
+  const pct = total ? Math.round(paid/total*100) : 0;
   listEl.innerHTML = `
     <div class="month-hist-card" onclick="toggleHistDetail(this)">
       <div class="month-hist-header">
@@ -842,11 +1242,11 @@ function renderBuhiHistory() {
       <div class="month-hist-bar-wrap"><div class="month-hist-bar" style="width:${pct}%"></div></div>
       <div class="month-hist-sub">タップして詳細を表示</div>
       <div class="month-hist-detail">
-        ${snap.members.map(m => `
+        ${snap.members.map(m=>`
           <div class="mhd-row">
             <div><span style="font-weight:600;">${m.name}</span>
             <span style="font-size:12px;color:var(--text3);margin-left:6px;">${m.part}</span></div>
-            <span class="${m.paid ? 'mhd-paid' : 'mhd-unpaid'}">${m.paid ? '支払済' : '未払い'}</span>
+            <span class="${m.paid?'mhd-paid':'mhd-unpaid'}">${m.paid?'支払済':'未払い'}</span>
           </div>`).join('')}
       </div>
     </div>`;
@@ -857,47 +1257,33 @@ function toggleHistDetail(card) {
     card.querySelector('.month-hist-detail').classList.contains('open') ? '▲ 閉じる' : 'タップして詳細を表示';
 }
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 // 集金期日
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 function renderDeadlineCard() {
   const card = document.getElementById('deadline-card');
   const display = document.getElementById('deadline-display');
   const remaining = document.getElementById('deadline-remaining');
   if (!deadlineDate) {
-    card.style.background = 'var(--bg3)';
-    display.textContent = '未設定'; display.style.color = 'var(--text2)';
-    remaining.textContent = '期日を設定してください'; remaining.style.color = 'var(--text3)';
-    return;
+    card.style.background='var(--bg3)'; display.textContent='未設定';
+    display.style.color='var(--text2)'; remaining.textContent='期日を設定してください';
+    remaining.style.color='var(--text3)'; return;
   }
-  const today = new Date(); today.setHours(0,0,0,0);
-  const dl = new Date(deadlineDate); dl.setHours(0,0,0,0);
-  const diff = Math.round((dl - today) / 86400000);
-  const y = dl.getFullYear(), mo = dl.getMonth()+1, d = dl.getDate();
-  display.textContent = y + '年' + mo + '月' + d + '日';
-  if (diff < 0) {
-    card.style.background = 'rgba(224,82,82,0.15)'; display.style.color = 'var(--red)';
-    remaining.textContent = '期日を' + Math.abs(diff) + '日過ぎています'; remaining.style.color = 'var(--red)';
-  } else if (diff === 0) {
-    card.style.background = 'rgba(245,158,11,0.18)'; display.style.color = 'var(--amber)';
-    remaining.textContent = '今日が期日です！'; remaining.style.color = 'var(--amber)';
-  } else if (diff <= 3) {
-    card.style.background = 'rgba(245,158,11,0.12)'; display.style.color = 'var(--amber)';
-    remaining.textContent = 'あと ' + diff + ' 日'; remaining.style.color = 'var(--amber)';
-  } else {
-    card.style.background = 'var(--bg3)'; display.style.color = 'var(--text)';
-    remaining.textContent = 'あと ' + diff + ' 日'; remaining.style.color = 'var(--accent)';
-  }
+  const today=new Date(); today.setHours(0,0,0,0);
+  const dl=new Date(deadlineDate); dl.setHours(0,0,0,0);
+  const diff=Math.round((dl-today)/86400000);
+  display.textContent = dl.getFullYear()+'年'+(dl.getMonth()+1)+'月'+dl.getDate()+'日';
+  if (diff<0) { card.style.background='rgba(224,82,82,0.15)'; display.style.color='var(--red)'; remaining.textContent='期日を'+Math.abs(diff)+'日過ぎています'; remaining.style.color='var(--red)'; }
+  else if (diff===0) { card.style.background='rgba(245,158,11,0.18)'; display.style.color='var(--amber)'; remaining.textContent='今日が期日です！'; remaining.style.color='var(--amber)'; }
+  else if (diff<=3) { card.style.background='rgba(245,158,11,0.12)'; display.style.color='var(--amber)'; remaining.textContent='あと '+diff+' 日'; remaining.style.color='var(--amber)'; }
+  else { card.style.background='var(--bg3)'; display.style.color='var(--text)'; remaining.textContent='あと '+diff+' 日'; remaining.style.color='var(--accent)'; }
 }
 function openDeadlineEdit() {
   document.getElementById('deadline-modal').classList.add('open');
   if (deadlineDate) {
-    const dl = new Date(deadlineDate);
-    document.getElementById('deadline-input').value =
-      dl.getFullYear() + '-' + String(dl.getMonth()+1).padStart(2,'0') + '-' + String(dl.getDate()).padStart(2,'0');
-  } else {
-    document.getElementById('deadline-input').value = '';
-  }
+    const dl=new Date(deadlineDate);
+    document.getElementById('deadline-input').value = dl.getFullYear()+'-'+String(dl.getMonth()+1).padStart(2,'0')+'-'+String(dl.getDate()).padStart(2,'0');
+  } else { document.getElementById('deadline-input').value=''; }
 }
 function closeDeadlineEdit() { document.getElementById('deadline-modal').classList.remove('open'); }
 async function saveDeadline() {
@@ -905,300 +1291,551 @@ async function saveDeadline() {
   if (!val) { showToast('日付を選んでください'); return; }
   deadlineDate = new Date(val);
   try {
-    await dbUpsert('settings', { key: 'deadline', value: val }, 'key');
-    closeDeadlineEdit();
-    renderDeadlineCard();
+    await dbUpsert('settings',{key:'deadline',value:val},'key', accessToken);
+    closeDeadlineEdit(); renderDeadlineCard();
     showToast('期日を設定しました');
-  } catch(e) { showToast('保存失敗: ' + e.message, true); }
+  } catch(e) { showToast('保存失敗: '+e.message,true); }
 }
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// 特別徴収（イベント費）
+// ══════════════════════════════════════════════════════
+function renderEventList() {
+  document.getElementById('event-admin-create').style.display = isAdmin() ? 'block' : 'none';
+  const list = document.getElementById('event-list');
+  if (!eventCollections.length) {
+    list.innerHTML='<div style="text-align:center;color:var(--text3);padding:32px 0;font-size:14px;">集金項目がまだありません</div>';
+    return;
+  }
+  list.innerHTML = eventCollections.map(ev => {
+    const deadline = ev.deadline ? '期限: '+ev.deadline : '期限なし';
+    return `
+      <div class="event-card" onclick="openEventDetail(${ev.id})">
+        <div class="event-card-title">${ev.title}</div>
+        <div class="event-card-meta">¥${ev.amount.toLocaleString('ja-JP')} ／ ${deadline}${ev.description?'<br>'+ev.description:''}</div>
+        <div class="event-card-bar-wrap"><div class="event-card-bar" style="width:0%" id="ev-bar-${ev.id}"></div></div>
+        <div class="event-card-pct" id="ev-pct-${ev.id}">読み込み中...</div>
+      </div>`;
+  }).join('');
+  // load payment status for each event
+  eventCollections.forEach(ev => loadEventProgress(ev.id));
+}
+
+async function loadEventProgress(evId) {
+  try {
+    const payments = await dbGet('event_payments',`collection_id=eq.${evId}`, accessToken);
+    const paid = payments.filter(p=>p.paid).length;
+    const total = buhi.length;
+    const pct = total ? Math.round(paid/total*100) : 0;
+    const barEl = document.getElementById('ev-bar-'+evId);
+    const pctEl = document.getElementById('ev-pct-'+evId);
+    if (barEl) barEl.style.width = pct+'%';
+    if (pctEl) pctEl.textContent = paid+'/'+total+'人 '+pct+'%';
+  } catch(e) {}
+}
+
+async function createEventCollection() {
+  const title = document.getElementById('ev-title').value.trim();
+  const amount = parseInt(document.getElementById('ev-amount').value)||0;
+  const deadline = document.getElementById('ev-deadline').value||null;
+  const description = document.getElementById('ev-desc').value.trim()||null;
+  if (!title) { showToast('タイトルを入力してください'); return; }
+  try {
+    const rows = await dbInsert('event_collections',{title,amount,deadline,description,archived:false}, accessToken);
+    if (rows&&rows[0]) {
+      eventCollections.unshift(rows[0]);
+      // create payment rows for all members
+      if (buhi.length) {
+        await dbInsert('event_payments', buhi.map(m=>({collection_id:rows[0].id,member_id:m.id,paid:false})), accessToken);
+      }
+    }
+    ['ev-title','ev-amount','ev-deadline','ev-desc'].forEach(id=>document.getElementById(id).value='');
+    renderEventList();
+    showToast(title+' を作成しました！');
+  } catch(e) { showToast('作成失敗: '+e.message,true); }
+}
+
+async function openEventDetail(evId) {
+  currentEventId = evId;
+  const ev = eventCollections.find(e=>e.id===evId);
+  if (!ev) return;
+  document.getElementById('event-detail-title').textContent = ev.title;
+  document.getElementById('event-detail-info').innerHTML = `
+    <div style="font-size:16px;font-weight:700;margin-bottom:6px;">${ev.title}</div>
+    <div style="font-size:14px;color:var(--text2);">¥${ev.amount.toLocaleString('ja-JP')} ${ev.deadline?'／ 期限: '+ev.deadline:''}</div>
+    ${ev.description?`<div style="font-size:13px;color:var(--text3);margin-top:4px;">${ev.description}</div>`:''}`;
+  document.getElementById('event-admin-archive').style.display = isAdmin() ? 'block' : 'none';
+  go('event-detail');
+  await renderEventDetail(evId);
+}
+
+async function renderEventDetail(evId) {
+  try {
+    const payments = await dbGet('event_payments',`collection_id=eq.${evId}`, accessToken);
+    const payMap = {};
+    payments.forEach(p=>{ payMap[p.member_id]={paid:p.paid,rowId:p.id}; });
+    const listEl = document.getElementById('event-detail-list');
+    listEl.innerHTML = buhi.map((m,i) => {
+      const pay = payMap[m.id];
+      const paid = pay?.paid ?? false;
+      return `
+        <div class="member-row">
+          <div><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
+          <button class="toggle ${paid?'on':''}" onclick="toggleEventPayment(${evId},${m.id},${pay?.rowId||'null'},${i})" ${!isAdmin()?'disabled':''}></button>
+        </div>`;
+    }).join('');
+  } catch(e) { showToast('読み込み失敗: '+e.message,true); }
+}
+
+async function toggleEventPayment(evId, memberId, rowId, idx) {
+  if (!isAdmin()) { showToast('管理者のみ操作できます',true); return; }
+  try {
+    if (rowId) {
+      const rows = await dbGet('event_payments',`id=eq.${rowId}`, accessToken);
+      const newPaid = !(rows[0]?.paid??false);
+      await dbUpdate('event_payments',{paid:newPaid},`id=eq.${rowId}`, accessToken);
+    } else {
+      await dbInsert('event_payments',{collection_id:evId,member_id:memberId,paid:true}, accessToken);
+    }
+    await renderEventDetail(evId);
+  } catch(e) { showToast('更新失敗: '+e.message,true); }
+}
+
+async function archiveCurrentEvent() {
+  if (!currentEventId) return;
+  showConfirm('この集金項目をアーカイブしますか？\n一覧から非表示になります。', async () => {
+    try {
+      await dbUpdate('event_collections',{archived:true},`id=eq.${currentEventId}`, accessToken);
+      eventCollections = eventCollections.filter(e=>e.id!==currentEventId);
+      go('event');
+      showToast('アーカイブしました');
+    } catch(e) { showToast('失敗: '+e.message,true); }
+  });
+}
+
+// ══════════════════════════════════════════════════════
 // 楽器修理
-// ═══════════════════════════════════════════════════════════
-const chkState2 = { chk1: false, chk2: false };
+// ══════════════════════════════════════════════════════
+const chkState2={chk1:false,chk2:false};
 function toggleChecklist() {
-  const p = document.getElementById('checklist-panel');
-  const btn = document.getElementById('checklist-toggle-btn');
-  const open = p.style.display === 'block';
-  p.style.display = open ? 'none' : 'block';
-  btn.textContent = '✓ 領収書チェックシート ' + (open ? '▼' : '▲');
+  const p=document.getElementById('checklist-panel');
+  const btn=document.getElementById('checklist-toggle-btn');
+  const open=p.style.display==='block';
+  p.style.display=open?'none':'block';
+  btn.textContent='✓ 領収書チェックシート '+(open?'▼':'▲');
 }
 function toggleCheck(id) {
-  chkState2[id] = !chkState2[id];
-  document.getElementById(id).classList.toggle('checked', chkState2[id]);
-  document.getElementById('checklist-done').style.display = (chkState2.chk1 && chkState2.chk2) ? 'block' : 'none';
+  chkState2[id]=!chkState2[id];
+  document.getElementById(id).classList.toggle('checked',chkState2[id]);
+  document.getElementById('checklist-done').style.display=(chkState2.chk1&&chkState2.chk2)?'block':'none';
 }
 function onRepairUpload(input) {
   if (input.files[0]) {
-    document.querySelector('#repair-upload-box .upload-text').textContent = '✓ アップロード済み';
-    document.getElementById('repair-upload-done').textContent = input.files[0].name;
+    document.querySelector('#repair-upload-box .upload-text').textContent='✓ アップロード済み';
+    document.getElementById('repair-upload-done').textContent=input.files[0].name;
   }
 }
 async function submitRepair() {
-  const name = document.getElementById('repair-name').value.trim();
-  const amount = parseInt(document.getElementById('repair-amount').value) || 0;
-  if (!name || !amount) { showToast('名前と金額を入力してください'); return; }
+  const name=document.getElementById('repair-name').value.trim();
+  const amount=parseInt(document.getElementById('repair-amount').value)||0;
+  if (!name||!amount) { showToast('名前と金額を入力してください'); return; }
   try {
-    const rows = await dbInsert('repair_requests', {
-      name, part: document.getElementById('repair-part').value,
-      amount, status: 'pending', date: new Date().toISOString().slice(0,10)
-    });
-    if (rows && rows[0]) repairHistory.unshift(rows[0]);
-    document.getElementById('repair-name').value = '';
-    document.getElementById('repair-amount').value = '';
+    const rows=await dbInsert('repair_requests',{name,part:document.getElementById('repair-part').value,amount,status:'pending',date:new Date().toISOString().slice(0,10)}, accessToken);
+    if (rows&&rows[0]) repairHistory.unshift(rows[0]);
+    document.getElementById('repair-name').value='';
+    document.getElementById('repair-amount').value='';
+    await sendLineNotify(`🎺【楽器修理申請】\n名前: ${name}\nパート: ${document.getElementById('repair-part').value}\n金額: ¥${amount.toLocaleString('ja-JP')}`);
     showToast('申請が完了しました！');
     go('repair-admin');
-  } catch(e) { showToast('申請失敗: ' + e.message, true); }
-}
-function renderRepairAdmin() {
-  const total = repairHistory.reduce((s, r) => s + r.amount, 0);
-  const pending = repairHistory.filter(r => r.status === 'pending').length;
-  document.getElementById('repair-total-val').textContent = '¥' + total.toLocaleString('ja-JP');
-  document.getElementById('repair-pending-val').textContent = pending + '件';
-  document.getElementById('repair-history-list').innerHTML = repairHistory.map(r => `
-    <div class="history-row">
-      <div class="history-top">
-        <div><div class="history-name">${r.name}</div><div class="history-sub">${r.part}</div></div>
-        <div style="text-align:right;">
-          <div class="history-amount">¥${r.amount.toLocaleString('ja-JP')}</div>
-          <div style="margin-top:4px;"><span class="badge ${r.status==='pending'?'pending':'approved'}">${r.status==='pending'?'保留中':'承認済み'}</span></div>
-        </div>
-      </div>
-      <div class="history-date">申請日: ${r.date}</div>
-    </div>`).join('');
-}
-function renderRepairUsage() {
-  document.getElementById('repair-usage-list').innerHTML = repairHistory.map(r => `
-    <div class="history-row">
-      <div class="history-top">
-        <div><div class="history-name">${r.name}</div><div class="history-sub">${r.part}</div></div>
-        <div style="text-align:right;">
-          <div class="history-amount">¥${r.amount.toLocaleString('ja-JP')}</div>
-          <div style="margin-top:4px;"><span class="badge ${r.status==='pending'?'pending':'approved'}">${r.status==='pending'?'保留中':'承認済み'}</span></div>
-        </div>
-      </div>
-      <div class="history-date">申請日: ${r.date}</div>
-    </div>`).join('');
-}
-function onAiPhotoUpload(input) {
-  if (input.files[0]) document.getElementById('ai-photo-done').textContent = '✓ ' + input.files[0].name;
-}
-function getAiEstimate() {
-  const content = document.getElementById('ai-content').value.trim();
-  const section = document.getElementById('ai-section').value;
-  if (!content) { showToast('修理内容を入力してください'); return; }
-  const r = document.getElementById('ai-result');
-  const t = document.getElementById('ai-result-text');
-  r.classList.add('show'); t.textContent = '計算中...';
-  setTimeout(() => {
-    const est = { 'サックス':'¥15,000〜¥45,000（タンポ交換：¥12,000〜、オーバーホール：¥40,000〜）',
-      'トロンボーン':'¥8,000〜¥30,000（スライド研磨：¥8,000〜、バルブ修理：¥15,000〜）',
-      'トランペット':'¥5,000〜¥25,000（ピストン修理：¥8,000〜、洗浄調整：¥5,000〜）',
-      'リズム':'¥3,000〜¥20,000（ヘッド交換：¥3,000〜、メンテナンス：¥8,000〜）' };
-    t.textContent = section + ' / ' + content + '\n推定費用: ' + (est[section] || '¥5,000〜¥30,000');
-  }, 1200);
+  } catch(e) { showToast('申請失敗: '+e.message,true); }
 }
 
-// ═══════════════════════════════════════════════════════════
+function renderRepairAdmin() {
+  // admin only screen
+  document.getElementById('repair-admin-btn').style.display = isAdmin() ? 'block' : 'none';
+  const total=repairHistory.reduce((s,r)=>s+r.amount,0);
+  const pending=repairHistory.filter(r=>r.status==='pending').length;
+  document.getElementById('repair-total-val').textContent='¥'+total.toLocaleString('ja-JP');
+  document.getElementById('repair-pending-val').textContent=pending+'件';
+  document.getElementById('repair-history-list').innerHTML=repairHistory.map(r=>`
+    <div class="history-row">
+      <div class="history-top">
+        <div><div class="history-name">${r.name}</div><div class="history-sub">${r.part}</div></div>
+        <div style="text-align:right;">
+          <div class="history-amount">¥${r.amount.toLocaleString('ja-JP')}</div>
+          <div style="margin-top:4px;"><span class="badge ${r.status==='pending'?'pending':r.status==='approved'?'approved':'rejected'}">${r.status==='pending'?'保留中':r.status==='approved'?'承認済み':'却下'}</span></div>
+        </div>
+      </div>
+      <div class="history-date">申請日: ${r.date||''}</div>
+      ${isAdmin()&&r.status==='pending'?`
+        <div class="admin-action-row">
+          <button class="action-btn action-approve" onclick="reviewRepair(${r.id},'approved')">✓ 承認</button>
+          <button class="action-btn action-reject" onclick="reviewRepair(${r.id},'rejected')">✗ 却下</button>
+        </div>`:''}`).join('');
+}
+
+async function reviewRepair(id, status) {
+  try {
+    const rows=await dbUpdate('repair_requests',{status,reviewed_by:currentProfile?.name||'admin',reviewed_at:new Date().toISOString()},`id=eq.${id}`, accessToken);
+    const r=repairHistory.find(x=>x.id===id);
+    if (r) r.status=status;
+    renderRepairAdmin();
+    const label=status==='approved'?'承認':'却下';
+    if (r) await sendLineNotify(`✅【修理申請${label}】\n名前: ${r.name} (${r.part})\n金額: ¥${r.amount.toLocaleString('ja-JP')}\nステータス: ${label}`);
+    showToast(label+'しました');
+  } catch(e) { showToast('更新失敗: '+e.message,true); }
+}
+
+function renderRepairUsage() {
+  document.getElementById('repair-usage-list').innerHTML=repairHistory.map(r=>`
+    <div class="history-row">
+      <div class="history-top">
+        <div><div class="history-name">${r.name}</div><div class="history-sub">${r.part}</div></div>
+        <div style="text-align:right;">
+          <div class="history-amount">¥${r.amount.toLocaleString('ja-JP')}</div>
+          <div style="margin-top:4px;"><span class="badge ${r.status==='pending'?'pending':r.status==='approved'?'approved':'rejected'}">${r.status==='pending'?'保留中':r.status==='approved'?'承認済み':'却下'}</span></div>
+        </div>
+      </div>
+      <div class="history-date">申請日: ${r.date||''}</div>
+    </div>`).join('');
+}
+
+function onAiPhotoUpload(input) {
+  if (input.files[0]) document.getElementById('ai-photo-done').textContent='✓ '+input.files[0].name;
+}
+function getAiEstimate() {
+  const content=document.getElementById('ai-content').value.trim();
+  const section=document.getElementById('ai-section').value;
+  if (!content) { showToast('修理内容を入力してください'); return; }
+  const r=document.getElementById('ai-result');
+  const t=document.getElementById('ai-result-text');
+  r.classList.add('show'); t.textContent='計算中...';
+  setTimeout(()=>{
+    const est={'サックス':'¥15,000〜¥45,000（タンポ交換：¥12,000〜、オーバーホール：¥40,000〜）',
+      'トロンボーン':'¥8,000〜¥30,000（スライド研磨：¥8,000〜、バルブ修理：¥15,000〜）',
+      'トランペット':'¥5,000〜¥25,000（ピストン修理：¥8,000〜、洗浄調整：¥5,000〜）',
+      'リズム':'¥3,000〜¥20,000（ヘッド交換：¥3,000〜、メンテナンス：¥8,000〜）'};
+    t.textContent=section+' / '+content+'\n推定費用: '+(est[section]||'¥5,000〜¥30,000');
+  },1200);
+}
+
+// ══════════════════════════════════════════════════════
 // エキストラ交通費
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 function calMove(dir) {
-  calMonth += dir;
-  if (calMonth < 0) { calMonth = 11; calYear--; }
-  if (calMonth > 11) { calMonth = 0; calYear++; }
+  calMonth+=dir;
+  if (calMonth<0){calMonth=11;calYear--;}
+  if (calMonth>11){calMonth=0;calYear++;}
   renderCalendar();
 }
 function renderCalendar() {
-  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-  document.getElementById('cal-month-label').textContent = calYear + '年' + months[calMonth];
-  const first = new Date(calYear, calMonth, 1).getDay();
-  const days = new Date(calYear, calMonth + 1, 0).getDate();
-  const today = new Date();
-  const isNow = today.getFullYear() === calYear && today.getMonth() === calMonth;
-  let html = '';
-  for (let i = 0; i < first; i++) html += '<div></div>';
-  for (let d = 1; d <= days; d++) {
-    html += `<div class="cal-day ${isNow && d === today.getDate() ? 'today' : ''}">${d}</div>`;
-  }
-  document.getElementById('cal-body').innerHTML = html;
+  const months=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('cal-month-label').textContent=calYear+'年'+months[calMonth];
+  const first=new Date(calYear,calMonth,1).getDay();
+  const days=new Date(calYear,calMonth+1,0).getDate();
+  const today=new Date();
+  const isNow=today.getFullYear()===calYear&&today.getMonth()===calMonth;
+  let html='';
+  for (let i=0;i<first;i++) html+='<div></div>';
+  for (let d=1;d<=days;d++) html+=`<div class="cal-day ${isNow&&d===today.getDate()?'today':''}">${d}</div>`;
+  document.getElementById('cal-body').innerHTML=html;
   updateExtraTotal();
 }
 function updateExtraTotal() {
-  const total = extraPlayers.reduce((s, p) => s + p.fee * p.visits * 2, 0);
-  document.getElementById('extra-monthly-total').textContent = '¥' + total.toLocaleString('ja-JP');
-  document.getElementById('extra-grand-total').textContent = '¥' + total.toLocaleString('ja-JP');
+  const total=extraPlayers.reduce((s,p)=>s+p.fee*p.visits*2+(p.manual_fee||0),0);
+  document.getElementById('extra-monthly-total').textContent='¥'+total.toLocaleString('ja-JP');
+  document.getElementById('extra-grand-total').textContent='¥'+total.toLocaleString('ja-JP');
 }
 function renderExtraPlayers() {
-  const list = document.getElementById('extra-player-list');
+  document.getElementById('extra-add-btn').style.display = isAdmin() ? 'inline-block' : 'none';
+  const list=document.getElementById('extra-player-list');
   if (!extraPlayers.length) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:14px;">まだプレーヤーが追加されていません</div>';
+    list.innerHTML='<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:14px;">まだプレーヤーが追加されていません</div>';
     updateExtraTotal(); return;
   }
-  list.innerHTML = extraPlayers.map(p => `
+  list.innerHTML=extraPlayers.map(p=>`
     <div class="extra-card">
       <div class="extra-top">
-        <div class="extra-name-wrap" onclick="incrementVisit(${p.id})" title="タップで出席カウント">
-          <div class="extra-name">${p.name}${p.visits > 0 ? ` <span style="background:var(--accent2);color:#fff;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px;">${p.visits}回</span>` : ''}</div>
+        <div class="extra-name-wrap" onclick="${isAdmin()?'incrementVisit('+p.id+')':'void(0)'}" title="${isAdmin()?'タップで出席カウント':''}">
+          <div class="extra-name">${p.name}${p.visits>0?` <span style="background:var(--accent2);color:#fff;font-size:11px;padding:2px 8px;border-radius:99px;margin-left:6px;">${p.visits}回</span>`:''}</div>
           <div class="extra-part">${p.part}</div>
         </div>
         <div class="extra-fee-badge">¥${p.fee.toLocaleString('ja-JP')}/回</div>
       </div>
       <div class="extra-bottom">
         <div class="extra-count">${p.visits}回出席</div>
-        <div class="extra-total">合計: ¥${(p.fee * p.visits * 2).toLocaleString('ja-JP')}</div>
+        <div class="extra-total">往復小計: ¥${(p.fee*p.visits*2).toLocaleString('ja-JP')}</div>
       </div>
-      <div class="extra-receipt-row">
+      ${isAdmin()?`
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">手動加算（イレギュラー分）</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input class="form-input" style="flex:1;margin-bottom:0;padding:8px 10px;font-size:14px;" type="number"
+            value="${p.manual_fee||0}" placeholder="金額"
+            onchange="updateManualFee(${p.id},this.value)">
+          <input class="form-input" style="flex:2;margin-bottom:0;padding:8px 10px;font-size:13px;"
+            value="${p.manual_note||''}" placeholder="備考（例: 定期区間外）"
+            onchange="updateManualNote(${p.id},this.value)">
+        </div>
+        <div style="font-size:13px;color:var(--accent);margin-top:6px;text-align:right;">
+          合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}
+        </div>
+      </div>`:
+      `<div style="margin-top:8px;font-size:13px;color:var(--text2);">合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}${p.manual_fee?` (手動加算 ¥${(p.manual_fee||0).toLocaleString('ja-JP')} 含む)`:''}</div>`}
+      <div class="extra-receipt-row" style="margin-top:8px;">
         <div style="font-size:12px;color:var(--text2);">領収証:</div>
-        ${p.receipt_name ? `<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`
-          : `<div class="receipt-status-none">未アップロード</div>`}
+        ${p.receipt_name?`<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`:`<div class="receipt-status-none">未アップロード</div>`}
         <div style="display:flex;gap:8px;">
-          <button class="upload-mini" onclick="uploadReceiptForPlayer(${p.id})">${p.receipt_name ? '変更' : 'アップロード'}</button>
-          <button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removePlayer(${p.id})">削除</button>
+          ${isAdmin()?`<button class="upload-mini" onclick="uploadReceiptForPlayer(${p.id})">${p.receipt_name?'変更':'アップロード'}</button>
+          <button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removePlayer(${p.id})">削除</button>`:''}
         </div>
       </div>
     </div>`).join('');
   updateExtraTotal();
 }
+
 async function incrementVisit(id) {
-  const p = extraPlayers.find(x => x.id === id);
-  if (!p) return;
+  const p=extraPlayers.find(x=>x.id===id); if (!p) return;
   p.visits++;
   renderExtraPlayers();
   try {
-    await dbUpdate('extra_players', { visits: p.visits }, `id=eq.${id}`);
-    showToast(p.name + ' ' + p.visits + '回目！');
-  } catch(e) { p.visits--; renderExtraPlayers(); showToast('更新失敗: ' + e.message, true); }
+    await dbUpdate('extra_players',{visits:p.visits},`id=eq.${id}`, accessToken);
+    showToast(p.name+' '+p.visits+'回目！');
+  } catch(e) { p.visits--; renderExtraPlayers(); showToast('更新失敗: '+e.message,true); }
 }
+
+async function updateManualFee(id, val) {
+  const p=extraPlayers.find(x=>x.id===id); if (!p) return;
+  p.manual_fee=parseInt(val)||0;
+  updateExtraTotal();
+  try { await dbUpdate('extra_players',{manual_fee:p.manual_fee},`id=eq.${id}`, accessToken); }
+  catch(e) { showToast('更新失敗: '+e.message,true); }
+}
+async function updateManualNote(id, val) {
+  const p=extraPlayers.find(x=>x.id===id); if (!p) return;
+  p.manual_note=val;
+  try { await dbUpdate('extra_players',{manual_note:val},`id=eq.${id}`, accessToken); }
+  catch(e) {}
+}
+
 function uploadReceiptForPlayer(id) {
-  const input = document.createElement('input');
-  input.type = 'file'; input.accept = 'image/*,.pdf';
-  input.onchange = async () => {
+  const input=document.createElement('input');
+  input.type='file'; input.accept='image/*,.pdf';
+  input.onchange=async()=>{
     if (!input.files[0]) return;
-    const p = extraPlayers.find(x => x.id === id);
-    if (!p) return;
-    const name = input.files[0].name;
-    p.receipt_name = name;
-    renderExtraPlayers();
-    try {
-      await dbUpdate('extra_players', { receipt_name: name }, `id=eq.${id}`);
-      showToast('領収証をアップロードしました');
-    } catch(e) { showToast('更新失敗: ' + e.message, true); }
+    const p=extraPlayers.find(x=>x.id===id); if (!p) return;
+    const name=input.files[0].name;
+    p.receipt_name=name; renderExtraPlayers();
+    try { await dbUpdate('extra_players',{receipt_name:name},`id=eq.${id}`, accessToken); showToast('領収証をアップロードしました'); }
+    catch(e) { showToast('更新失敗: '+e.message,true); }
   };
   input.click();
 }
+
 async function removePlayer(id) {
-  showConfirm('このプレーヤーを削除しますか？', async () => {
+  showConfirm('このプレーヤーを削除しますか？', async()=>{
     try {
-      await dbDelete('extra_players', `id=eq.${id}`);
-      extraPlayers = extraPlayers.filter(x => x.id !== id);
+      await dbDelete('extra_players',`id=eq.${id}`, accessToken);
+      extraPlayers=extraPlayers.filter(x=>x.id!==id);
       renderExtraPlayers();
-    } catch(e) { showToast('削除失敗: ' + e.message, true); }
+    } catch(e) { showToast('削除失敗: '+e.message,true); }
   });
 }
+
 function openAddPlayer() {
   document.getElementById('add-player-modal').classList.add('open');
-  ['ap-name','ap-part','ap-fee'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('ap-receipt-name').textContent = '';
-  apReceiptFile = null;
+  ['ap-name','ap-part','ap-fee','ap-manual-fee','ap-manual-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ap-receipt-name').textContent='';
+  apReceiptFile=null;
 }
 function closeAddPlayer() { document.getElementById('add-player-modal').classList.remove('open'); }
 function onApReceiptChange(input) {
-  apReceiptFile = input.files[0] || null;
-  document.getElementById('ap-receipt-name').textContent = apReceiptFile ? apReceiptFile.name : '';
+  apReceiptFile=input.files[0]||null;
+  document.getElementById('ap-receipt-name').textContent=apReceiptFile?apReceiptFile.name:'';
 }
 async function addPlayer() {
-  const name = document.getElementById('ap-name').value.trim();
-  const part = document.getElementById('ap-part').value.trim();
-  const fee = parseInt(document.getElementById('ap-fee').value) || 0;
+  const name=document.getElementById('ap-name').value.trim();
+  const part=document.getElementById('ap-part').value.trim();
+  const fee=parseInt(document.getElementById('ap-fee').value)||0;
+  const manual_fee=parseInt(document.getElementById('ap-manual-fee').value)||0;
+  const manual_note=document.getElementById('ap-manual-note').value.trim()||null;
   if (!name) { showToast('名前を入力してください'); return; }
   try {
-    const rows = await dbInsert('extra_players', {
-      name, part: part || '未設定', fee, visits: 0,
-      receipt_name: apReceiptFile ? apReceiptFile.name : null
-    });
-    if (rows && rows[0]) extraPlayers.push(rows[0]);
-    closeAddPlayer();
-    renderExtraPlayers();
-    showToast(name + ' を追加しました！');
-  } catch(e) { showToast('追加失敗: ' + e.message, true); }
+    const rows=await dbInsert('extra_players',{name,part:part||'未設定',fee,visits:0,manual_fee,manual_note,receipt_name:apReceiptFile?apReceiptFile.name:null}, accessToken);
+    if (rows&&rows[0]) extraPlayers.push(rows[0]);
+    closeAddPlayer(); renderExtraPlayers();
+    await sendLineNotify(`🚗【エキストラ交通費登録】\n名前: ${name}\nパート: ${part||'未設定'}\n片道: ¥${fee.toLocaleString('ja-JP')}`);
+    showToast(name+' を追加しました！');
+  } catch(e) { showToast('追加失敗: '+e.message,true); }
 }
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 // その他出費
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 function renderOtherHistory() {
-  const list = document.getElementById('other-history-list');
-  list.innerHTML = otherHistory.map(h => `
+  const list=document.getElementById('other-history-list');
+  list.innerHTML=otherHistory.map(h=>`
     <div class="history-row" style="margin-bottom:8px;">
       <div class="history-top">
         <div><div class="history-name">${h.name}</div><div class="history-sub">${h.content}</div></div>
         <div style="text-align:right;">
           <div class="history-amount">¥${h.amount.toLocaleString('ja-JP')}</div>
-          <div style="margin-top:4px;"><span class="badge ${h.status==='pending'?'pending':'approved'}">${h.status==='pending'?'保留中':'承認済み'}</span></div>
+          <div style="margin-top:4px;"><span class="badge ${h.status==='pending'?'pending':h.status==='approved'?'approved':'rejected'}">${h.status==='pending'?'保留中':h.status==='approved'?'承認済み':'却下'}</span></div>
         </div>
       </div>
-      <div class="history-date">申請日: ${h.date}</div>
-    </div>`).join('');
-  document.getElementById('other-total').textContent =
-    '¥' + otherHistory.reduce((s, h) => s + h.amount, 0).toLocaleString('ja-JP');
+      <div class="history-date">申請日: ${h.date||''}</div>
+      ${isAdmin()&&h.status==='pending'?`
+        <div class="admin-action-row">
+          <button class="action-btn action-approve" onclick="reviewOther(${h.id},'approved')">✓ 承認</button>
+          <button class="action-btn action-reject" onclick="reviewOther(${h.id},'rejected')">✗ 却下</button>
+        </div>`:''}`).join('');
+  document.getElementById('other-total').textContent='¥'+otherHistory.reduce((s,h)=>s+h.amount,0).toLocaleString('ja-JP');
   updateOtherBtn();
 }
-function updateOtherBtn() {
-  const name = document.getElementById('other-name')?.value.trim();
-  const content = document.getElementById('other-content')?.value.trim();
-  const amount = document.getElementById('other-amount')?.value;
-  const btn = document.getElementById('other-submit-btn');
-  const ok = name && content && amount;
-  btn.style.background = ok ? 'var(--accent2)' : 'var(--bg4)';
-  btn.style.color = ok ? '#fff' : 'var(--text2)';
-}
-async function submitOther() {
-  const name = document.getElementById('other-name').value.trim();
-  const content = document.getElementById('other-content').value.trim();
-  const amount = parseInt(document.getElementById('other-amount').value) || 0;
-  if (!name || !content || !amount) { showToast('すべての項目を入力してください'); return; }
+
+async function reviewOther(id, status) {
   try {
-    const rows = await dbInsert('other_expenses', {
-      name, content, amount, status: 'pending', date: new Date().toISOString().slice(0,10)
-    });
-    if (rows && rows[0]) otherHistory.unshift(rows[0]);
-    ['other-name','other-content','other-amount'].forEach(id => document.getElementById(id).value = '');
-    const s = document.getElementById('other-success');
-    s.style.display = 'block';
-    setTimeout(() => s.style.display = 'none', 2500);
+    await dbUpdate('other_expenses',{status},`id=eq.${id}`, accessToken);
+    const h=otherHistory.find(x=>x.id===id);
+    if (h) h.status=status;
     renderOtherHistory();
-    showToast('申請しました！');
-  } catch(e) { showToast('申請失敗: ' + e.message, true); }
+    showToast(status==='approved'?'承認しました':'却下しました');
+  } catch(e) { showToast('更新失敗: '+e.message,true); }
 }
-['other-name','other-content','other-amount'].forEach(id =>
+
+function updateOtherBtn() {
+  const name=document.getElementById('other-name')?.value.trim();
+  const content=document.getElementById('other-content')?.value.trim();
+  const amount=document.getElementById('other-amount')?.value;
+  const btn=document.getElementById('other-submit-btn');
+  const ok=name&&content&&amount;
+  btn.style.background=ok?'var(--accent2)':'var(--bg4)';
+  btn.style.color=ok?'#fff':'var(--text2)';
+}
+
+async function submitOther() {
+  const name=document.getElementById('other-name').value.trim();
+  const content=document.getElementById('other-content').value.trim();
+  const amount=parseInt(document.getElementById('other-amount').value)||0;
+  if (!name||!content||!amount) { showToast('すべての項目を入力してください'); return; }
+  try {
+    const rows=await dbInsert('other_expenses',{name,content,amount,status:'pending',date:new Date().toISOString().slice(0,10)}, accessToken);
+    if (rows&&rows[0]) otherHistory.unshift(rows[0]);
+    ['other-name','other-content','other-amount'].forEach(id=>document.getElementById(id).value='');
+    const s=document.getElementById('other-success');
+    s.style.display='block'; setTimeout(()=>s.style.display='none',2500);
+    await sendLineNotify(`📝【その他出費申請】\n名前: ${name}\n内容: ${content}\n金額: ¥${amount.toLocaleString('ja-JP')}`);
+    renderOtherHistory(); showToast('申請しました！');
+  } catch(e) { showToast('申請失敗: '+e.message,true); }
+}
+['other-name','other-content','other-amount'].forEach(id=>
   document.getElementById(id)?.addEventListener('input', updateOtherBtn));
 
-// ═══════════════════════════════════════════════════════════
-// UTILS
-// ═══════════════════════════════════════════════════════════
-let confirmCallback = null;
-function showConfirm(msg, cb) {
-  document.getElementById('confirm-msg').textContent = msg;
-  confirmCallback = cb;
-  document.getElementById('confirm-dialog').classList.add('open');
-  document.getElementById('confirm-ok-btn').onclick = () => { closeConfirm(); if (confirmCallback) confirmCallback(); };
+// ══════════════════════════════════════════════════════
+// 財政ダッシュボード
+// ══════════════════════════════════════════════════════
+function openDashboard() {
+  if (!dashboardData) { showToast('データ読み込み中です'); return; }
+  const today = new Date();
+  const thisMonth = today.getFullYear()+'-'+(String(today.getMonth()+1).padStart(2,'0'));
+  // 今月の支出を自動計算
+  const repairTotal = repairHistory.filter(r=>r.status==='approved'&&(r.date||'').startsWith(thisMonth)).reduce((s,r)=>s+r.amount,0);
+  const otherTotal = otherHistory.filter(h=>h.status==='approved'&&(h.date||'').startsWith(thisMonth)).reduce((s,h)=>s+h.amount,0);
+  const extraTotal = extraPlayers.reduce((s,p)=>s+p.fee*p.visits*2+(p.manual_fee||0),0);
+  const autoExpense = repairTotal + otherTotal + extraTotal;
+  const finalExpense = dashboardData.expense_manual || autoExpense;
+
+  document.getElementById('dash-balance').textContent = '¥'+(dashboardData.balance||0).toLocaleString('ja-JP');
+  document.getElementById('dash-income').textContent = '¥'+(dashboardData.income_manual||0).toLocaleString('ja-JP');
+  document.getElementById('dash-expense').textContent = '¥'+finalExpense.toLocaleString('ja-JP');
+  document.getElementById('dash-repair-count').textContent = repairHistory.filter(r=>(r.date||'').startsWith(thisMonth)).length+'件';
+  document.getElementById('dash-other-count').textContent = otherHistory.filter(h=>(h.date||'').startsWith(thisMonth)).length+'件';
+  document.getElementById('dash-extra-count').textContent = extraPlayers.length+'件';
+  document.getElementById('dash-note-input').value = dashboardData.note||'';
+  document.getElementById('dashboard-modal').classList.add('open');
 }
-function closeConfirm() { document.getElementById('confirm-dialog').classList.remove('open'); confirmCallback = null; }
+function closeDashboard() { document.getElementById('dashboard-modal').classList.remove('open'); }
+
+async function saveDashField(field, inputId) {
+  const val = parseInt(document.getElementById(inputId).value)||0;
+  if (!dashboardData) return;
+  try {
+    await dbUpdate('finance_dashboard',{[field]:val,updated_at:new Date().toISOString()},`id=eq.${dashboardData.id}`, accessToken);
+    dashboardData[field]=val;
+    openDashboard(); // re-render
+    showToast('更新しました');
+  } catch(e) { showToast('更新失敗: '+e.message,true); }
+}
+async function saveDashNote() {
+  const note = document.getElementById('dash-note-input').value;
+  if (!dashboardData) return;
+  try {
+    await dbUpdate('finance_dashboard',{note,updated_at:new Date().toISOString()},`id=eq.${dashboardData.id}`, accessToken);
+    dashboardData.note=note;
+    showToast('メモを保存しました');
+  } catch(e) { showToast('保存失敗: '+e.message,true); }
+}
+
+// ══════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════
+let confirmCallback=null;
+function showConfirm(msg,cb) {
+  document.getElementById('confirm-msg').textContent=msg;
+  confirmCallback=cb;
+  document.getElementById('confirm-dialog').classList.add('open');
+  document.getElementById('confirm-ok-btn').onclick=()=>{ closeConfirm(); if(confirmCallback) confirmCallback(); };
+}
+function closeConfirm() { document.getElementById('confirm-dialog').classList.remove('open'); confirmCallback=null; }
 
 let toastTimer;
-function showToast(msg, isError = false) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.toggle('error', isError);
+function showToast(msg, isError=false) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.toggle('error',isError);
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),2500);
 }
 
-// ═══════════════════════════════════════════════════════════
-// START
-// ═══════════════════════════════════════════════════════════
-init();
+// ══════════════════════════════════════════════════════
+// BOOT: check existing session
+// ══════════════════════════════════════════════════════
+(async()=>{
+  // Try to restore session from Supabase
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+(localStorage.getItem('sb_token')||'')}
+    });
+    if (r.ok) {
+      const user = await r.json();
+      if (user.id) {
+        accessToken = localStorage.getItem('sb_token');
+        currentUser = user;
+        const profiles = await dbGet('profiles',`id=eq.${user.id}`, accessToken);
+        currentProfile = profiles[0] || { role:'member', name: user.email };
+        if (user.email==='groovy2026blue@gmail.com'&&currentProfile.role!=='admin') {
+          await dbUpdate('profiles',{role:'admin'},`id=eq.${user.id}`, accessToken);
+          currentProfile.role='admin';
+        }
+        await init();
+        document.getElementById('loading-overlay').classList.add('hidden');
+        return;
+      }
+    }
+  } catch(e) {}
+  document.getElementById('loading-overlay').classList.add('hidden');
+  document.getElementById('auth-overlay').classList.remove('hidden');
+})();
+
+// Save token on login
+const _origLogin = doLogin;
+// Patch to save token
+const origOnLoginSuccess = onLoginSuccess;
+async function onLoginSuccess(data) {
+  if (data.access_token) localStorage.setItem('sb_token', data.access_token);
+  await origOnLoginSuccess(data);
+}
 </script>
 </body>
 </html>
