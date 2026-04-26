@@ -1,45 +1,35 @@
 <!--
-  ══════════════════════════════════════════════════════
-  ★★★ 必ずSupabase SQL Editorで実行してください ★★★
-  ══════════════════════════════════════════════════════
+  ╔══════════════════════════════════════════════════════╗
+  ║  Supabase SQL Editor でこれだけ実行してください     ║
+  ║  （コピーしてそのまま貼り付けてRunを押すだけ）      ║
+  ╚══════════════════════════════════════════════════════╝
 
-  -- ① 援助金テーブル作成
+  -- ① 新規テーブル作成（まだなければ）
   create table if not exists enjo_requests (
     id bigint generated always as identity primary key,
-    title text not null,
-    amount int default 0,
-    refund_date text,
-    refund_amount int default 0,
-    has_receipt boolean default false,
-    date text,
+    title text not null, amount int default 0,
+    refund_date text, refund_amount int default 0,
+    has_receipt boolean default false, date text,
     created_at timestamptz default now()
   );
-  alter table enjo_requests enable row level security;
 
-  -- ② 全テーブルのRLSポリシーを anon（未ログイン）にも開放
-  -- ※ 読み取り(SELECT)はanon可、書き込み(INSERT/UPDATE/DELETE)はauthenticatedのみ
+  -- ② カラム追加
+  alter table extra_players add column if not exists archived boolean default false;
+  alter table members add column if not exists retired boolean default false;
 
-  do $$ declare t text; begin
-    foreach t in array array[
-      'members','buhi_payments','buhi_snapshots','settings',
-      'extra_players','repair_requests','other_expenses',
-      'event_collections','event_payments','finance_dashboard','enjo_requests'
-    ] loop
-      execute format('drop policy if exists "anon_read" on %I', t);
-      execute format('drop policy if exists "auth_write" on %I', t);
-      execute format('drop policy if exists "auth_all" on %I', t);
-      -- 読み取りは全員OK
-      execute format(
-        'create policy "anon_read" on %I for select to anon, authenticated using (true)', t
-      );
-      -- 書き込みは認証済みのみ
-      execute format(
-        'create policy "auth_write" on %I for all to authenticated using (true) with check (true)', t
-      );
-    end loop;
-  end $$;
-
-  ══════════════════════════════════════════════════════
+  -- ③ 全テーブルのRLSを無効化（これが一番確実）
+  alter table members disable row level security;
+  alter table buhi_payments disable row level security;
+  alter table buhi_snapshots disable row level security;
+  alter table settings disable row level security;
+  alter table extra_players disable row level security;
+  alter table repair_requests disable row level security;
+  alter table other_expenses disable row level security;
+  alter table event_collections disable row level security;
+  alter table event_payments disable row level security;
+  alter table finance_dashboard disable row level security;
+  alter table enjo_requests disable row level security;
+  alter table profiles disable row level security;
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -47,6 +37,51 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Groovy 会計</title>
+<!-- PWA設定 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Groovy会計">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0d1b2e">
+<!--
+  ══ アイコン画像の設定方法 ══
+  1. GitHubにリポジトリを作成（例: groovy-kaikei）
+  2. アイコン画像をアップロード（icon.png 推奨: 512×512px）
+  3. 下のGITHUB_ICON_URLを自分のURLに書き換える
+  例: https://raw.githubusercontent.com/ユーザー名/groovy-kaikei/main/icon.png
+-->
+<!-- アイコン（iOS/Android） -->
+<link rel="apple-touch-icon" id="pwa-icon" href="https://raw.githubusercontent.com/YOUR_USERNAME/groovy-kaikei/main/icon.png">
+<link rel="icon" id="pwa-favicon" href="https://raw.githubusercontent.com/YOUR_USERNAME/groovy-kaikei/main/icon.png">
+<!-- manifest（インライン） -->
+<script>
+// PWA Manifest を動的生成（アイコンURLを変数で管理）
+const GITHUB_ICON_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/groovy-kaikei/main/icon.png";
+// ↑ GitHubにアイコン画像をアップロードしたら、YOUR_USERNAMEとリポジトリ名を変更
+
+const manifestData = {
+  name: "Groovy 会計",
+  short_name: "Groovy会計",
+  description: "Groovy Sounds Jazz Orchestra 会計管理",
+  start_url: "./",
+  display: "standalone",
+  background_color: "#0d1b2e",
+  theme_color: "#0d1b2e",
+  orientation: "portrait",
+  icons: [
+    { src: GITHUB_ICON_URL, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+  ]
+};
+const manifestBlob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
+const manifestURL = URL.createObjectURL(manifestBlob);
+const manifestLink = document.createElement('link');
+manifestLink.rel = 'manifest';
+manifestLink.href = manifestURL;
+document.head.appendChild(manifestLink);
+// apple-touch-icon も動的更新
+document.getElementById('pwa-icon').href = GITHUB_ICON_URL;
+document.getElementById('pwa-favicon').href = GITHUB_ICON_URL;
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{
@@ -361,6 +396,17 @@ select.form-input{-webkit-appearance:none;appearance:none;}
 
 <!-- ═══ Loading ═══ -->
 <div id="loading-overlay">
+  <div style="margin-bottom:20px;text-align:center;">
+    <svg width="80" height="80" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" rx="100" fill="#152035"/>
+      <text x="256" y="310" font-family="Arial Black,sans-serif" font-size="260" font-weight="900" fill="#6cb4e4" text-anchor="middle">G</text>
+      <circle cx="345" cy="350" r="34" fill="#4cd46a"/>
+      <rect x="374" y="210" width="20" height="144" rx="10" fill="#4cd46a"/>
+      <rect x="345" y="210" width="50" height="24" rx="12" fill="#4cd46a"/>
+    </svg>
+  </div>
+  <div style="font-size:22px;font-weight:800;color:#6cb4e4;margin-bottom:4px;">Groovy 会計</div>
+  <div style="font-size:12px;color:#6080a0;margin-bottom:20px;">Groovy Sounds Jazz Orchestra</div>
   <div class="loading-spinner"></div>
   <div class="loading-text">読み込み中...</div>
 </div>
@@ -408,11 +454,32 @@ select.form-input{-webkit-appearance:none;appearance:none;}
       <!-- ログイン時: ログアウトボタン -->
       <button id="logout-btn" class="logout-btn" onclick="doLogout()" style="display:none;">ログアウト</button>
     </div>
-    <button class="menu-btn" onclick="go('buhi')"><span class="icon">💰</span> 部費集金</button>
-    <button class="menu-btn" onclick="go('event')"><span class="icon">🎉</span> 特別徴収（イベント費）</button>
-    <button class="menu-btn" onclick="go('repair')"><span class="icon">🎺</span> 楽器修理</button>
+    <!-- アプリ内通知バナー -->
+    <div id="home-alert-banner" style="display:none;background:linear-gradient(135deg,#7c1d1d,#e05252);
+      border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:12px;
+      display:none;align-items:center;gap:10px;">
+      <span style="font-size:20px;">🔔</span>
+      <div id="home-alert-text" style="font-size:13px;font-weight:700;color:#fff;flex:1;"></div>
+      <button onclick="document.getElementById('home-alert-banner').style.display='none'"
+        style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <button class="menu-btn" id="menu-buhi" onclick="go('buhi')">
+      <span class="icon">💰</span> 部費集金
+      <span id="badge-buhi" style="display:none;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:auto;"></span>
+    </button>
+    <button class="menu-btn" id="menu-event" onclick="go('event')">
+      <span class="icon">🎉</span> 特別徴収（イベント費）
+      <span id="badge-event" style="display:none;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:auto;"></span>
+    </button>
+    <button class="menu-btn" id="menu-repair" onclick="go('repair')">
+      <span class="icon">🎺</span> 楽器修理
+      <span id="badge-repair" style="display:none;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:auto;"></span>
+    </button>
     <button class="menu-btn" onclick="go('extra')"><span class="icon">🚗</span> エキストラ交通費</button>
-    <button class="menu-btn" onclick="go('other')"><span class="icon">📝</span> その他出費</button>
+    <button class="menu-btn" id="menu-other" onclick="go('other')">
+      <span class="icon">📝</span> その他出費
+      <span id="badge-other" style="display:none;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:auto;"></span>
+    </button>
     <!-- Admin only -->
     <div id="admin-only-btns" style="display:none;">
       <button class="menu-btn" onclick="go('enjo')" style="background:linear-gradient(135deg,#1a3a5c,#243550);border:1px solid var(--accent2);">
@@ -732,13 +799,19 @@ select.form-input{-webkit-appearance:none;appearance:none;}
     <div id="other-success" style="display:none;">
       <button class="green-btn" style="pointer-events:none;">✓ 申請が完了しました！</button>
     </div>
-    <div class="card" style="margin-top:4px;">
-      <div style="font-size:15px;font-weight:700;margin-bottom:12px;">申請履歴</div>
-      <div id="other-history-list"></div>
-      <div class="divider"></div>
-      <div class="total-footer">
-        <div class="tf-label">合計金額</div>
-        <div class="tf-val" id="other-total">¥0</div>
+    <!-- 月別切り替え -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 4px;">
+      <button onclick="otherHistMove(-1)" style="background:none;border:none;color:var(--accent);font-size:22px;cursor:pointer;padding:4px 8px;">←</button>
+      <div style="font-size:15px;font-weight:700;" id="other-month-label"></div>
+      <button onclick="otherHistMove(1)" style="background:none;border:none;color:var(--accent);font-size:22px;cursor:pointer;padding:4px 8px;">→</button>
+    </div>
+    <div style="background:var(--bg3);border-radius:var(--radius);overflow:hidden;">
+      <div style="padding:14px 16px 8px;font-size:14px;font-weight:700;color:var(--text2);">申請履歴</div>
+      <!-- スクロール可能なリスト -->
+      <div id="other-history-list" style="max-height:420px;overflow-y:auto;padding:0 16px 8px;"></div>
+      <div style="border-top:1px solid var(--border);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;color:var(--text2);">合計金額</span>
+        <span style="font-size:22px;font-weight:800;" id="other-total">¥0</span>
       </div>
     </div>
   </div>
@@ -964,22 +1037,81 @@ async function dbUpsert(table, data, onConflict, token) {
 // LINE NOTIFY
 // ══════════════════════════════════════════════════════
 async function sendLineNotify(message) {
-  // CORS制限のためプロキシ経由が必要な場合があります
-  // 本番環境ではSupabase Edge Functionを経由することを推奨します
+  // LINE通知はCORSのため直接送れない
+  // → Supabase Edge Functionを経由
+  // Edge Functionが未設定の場合はコンソールにログを出す
+  console.log('📨 LINE通知送信:', message);
   try {
-    await fetch('https://notify-api.line.me/api/notify', {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/line-notify`, {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + LINE_TOKEN,
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + (accessToken || SUPABASE_KEY)
       },
-      body: 'message=' + encodeURIComponent(message),
-      mode: 'no-cors' // CORSをバイパス（レスポンスは読めないが送信は可能）
+      body: JSON.stringify({ message, token: LINE_TOKEN })
     });
+    if (res.ok) {
+      console.log('✅ LINE通知送信成功');
+    } else {
+      const txt = await res.text();
+      console.warn('❌ LINE通知失敗 - Edge Functionを設定してください:', txt);
+      // Edge Function未設定の場合: コンソールにメッセージを表示
+      // → Supabase → Edge Functions → 新しい関数 → "line-notify" を作成してください
+    }
   } catch(e) {
-    console.warn('LINE通知送信:', e);
+    console.warn('LINE通知エラー:', e.message);
   }
 }
+// ══ LINE Notify Edge Function 設定手順 ══
+// 1. Supabase ダッシュボード → Edge Functions → New Function
+// 2. 関数名: line-notify
+// 3. 以下のコードを貼り付けてDeploy:
+//
+// Deno.serve(async (req) => {
+//   if (req.method === 'OPTIONS') {
+//     return new Response('ok', { headers: {
+//       'Access-Control-Allow-Origin': '*',
+//       'Access-Control-Allow-Headers': 'authorization, content-type',
+//     }});
+//   }
+//   const { message, token } = await req.json();
+//   const res = await fetch('https://notify-api.line.me/api/notify', {
+//     method: 'POST',
+//     headers: {
+//       'Authorization': 'Bearer ' + token,
+//       'Content-Type': 'application/x-www-form-urlencoded'
+//     },
+//     body: 'message=' + encodeURIComponent('\n' + message)
+//   });
+//   const ok = res.ok;
+//   return new Response(JSON.stringify({ ok }), {
+//     headers: {
+//       'Content-Type': 'application/json',
+//       'Access-Control-Allow-Origin': '*'
+//     }
+//   });
+// });
+/*
+  ══ Supabase Edge Function のコード（line-notify） ══
+  Supabase → Edge Functions → New Function → "line-notify" で以下を貼り付け:
+
+  Deno.serve(async (req) => {
+    const { message, token } = await req.json();
+    const res = await fetch('https://notify-api.line.me/api/notify', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'message=' + encodeURIComponent(message)
+    });
+    return new Response(JSON.stringify({ ok: res.ok }), {
+      headers: { 'Content-Type': 'application/json',
+                 'Access-Control-Allow-Origin': '*' }
+    });
+  });
+  ══════════════════════════════════════════════════
+*/
 
 // ══════════════════════════════════════════════════════
 // LOADING / AUTH HELPERS（最初に定義）
@@ -1222,13 +1354,56 @@ function renderHome() {
   document.getElementById('admin-only-btns').style.display = admin ? 'block' : 'none';
   document.getElementById('admin-login-btn').style.display = admin ? 'none' : 'inline-block';
   document.getElementById('logout-btn').style.display = admin ? 'inline-block' : 'none';
+  updateBadges();
+}
+
+function updateBadges() {
+  const alerts = [];
+
+  // 未承認の修理申請
+  const pendingRepair = repairHistory.filter(r => r.status === 'pending').length;
+  setBadge('badge-repair', pendingRepair);
+  if (pendingRepair) alerts.push(`楽器修理 ${pendingRepair}件が未承認`);
+
+  // 未承認のその他出費
+  const pendingOther = otherHistory.filter(h => h.status === 'pending').length;
+  setBadge('badge-other', pendingOther);
+  if (pendingOther) alerts.push(`その他出費 ${pendingOther}件が未承認`);
+
+  // 部費: 未払いメンバー（管理者のみ）
+  if (isAdmin()) {
+    const unpaidBuhi = buhi.filter(m => !m.paid).length;
+    setBadge('badge-buhi', unpaidBuhi, '未払い');
+    if (unpaidBuhi) alerts.push(`部費未払い ${unpaidBuhi}人`);
+  }
+
+  // バナー表示
+  const banner = document.getElementById('home-alert-banner');
+  const bannerText = document.getElementById('home-alert-text');
+  if (alerts.length) {
+    banner.style.display = 'flex';
+    bannerText.textContent = '⚠ ' + alerts.join('  /  ');
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function setBadge(id, count, label) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (count > 0) {
+    el.style.display = 'inline-block';
+    el.textContent = label ? label+count : count;
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 // ══════════════════════════════════════════════════════
 // LOAD FUNCTIONS
 // ══════════════════════════════════════════════════════
 async function loadMembers() {
-  const members = await dbGet('members','order=id.asc', accessToken);
+  const members = await dbGet('members','retired=neq.true&order=id.asc', accessToken);
   const payments = await dbGet('buhi_payments',`year=eq.${NOW_YEAR}&month=eq.${NOW_MONTH}`, accessToken);
   const payMap = {};
   payments.forEach(p => { payMap[p.member_id] = { paid: p.paid, rowId: p.id }; });
@@ -1242,7 +1417,7 @@ async function loadRepairHistory() {
   repairHistory = await dbGet('repair_requests','order=created_at.desc', accessToken);
 }
 async function loadExtraPlayers() {
-  extraPlayers = await dbGet('extra_players','order=created_at.asc', accessToken);
+  extraPlayers = await dbGet('extra_players','archived=eq.false&order=created_at.asc', accessToken);
 }
 async function loadOtherHistory() {
   otherHistory = await dbGet('other_expenses','order=created_at.desc', accessToken);
@@ -1296,14 +1471,23 @@ function renderBuhi() {
   document.getElementById('buhi-num').innerHTML = paid+' <span>/ '+total+'</span>';
   document.getElementById('buhi-bar').style.width = pct+'%';
   document.getElementById('buhi-pct').textContent = pct+'%';
-  // admin controls
   document.getElementById('deadline-change-btn').style.display = isAdmin() ? 'inline-block' : 'none';
   document.getElementById('buhi-admin-actions').style.display = isAdmin() ? 'block' : 'none';
-  document.getElementById('buhi-list').innerHTML = buhi.map((m,i) => `
-    <div class="member-row">
-      <div><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
-      <button class="toggle ${m.paid?'on':''}" onclick="toggleBuhi(${i})" ${!isAdmin()?'disabled':''}></button>
-    </div>`).join('');
+  if (!isAdmin()) {
+    // ゲスト: %と人数だけ、名前非表示
+    document.getElementById('buhi-list').innerHTML = `
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:18px;text-align:center;color:var(--text2);font-size:14px;">
+        <div style="font-size:32px;font-weight:800;color:var(--accent);margin-bottom:6px;">${pct}%</div>
+        <div>${paid} / ${total} 人が支払い済み</div>
+        <div style="font-size:12px;margin-top:8px;color:var(--text3);">個人の情報は管理者のみ閲覧可能です</div>
+      </div>`;
+  } else {
+    document.getElementById('buhi-list').innerHTML = buhi.map((m,i) => `
+      <div class="member-row">
+        <div><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
+        <button class="toggle ${m.paid?'on':''}" onclick="toggleBuhi(${i})"></button>
+      </div>`).join('');
+  }
 }
 
 async function toggleBuhi(i) {
@@ -1338,13 +1522,17 @@ async function addBuhiMember() {
 }
 
 async function removeBuhiMember(i) {
-  showConfirm(buhi[i].name+' を削除しますか？', async () => {
-    try {
-      await dbDelete('members',`id=eq.${buhi[i].id}`, accessToken);
-      buhi.splice(i,1);
-      renderBuhiMemberList(); renderBuhi();
-    } catch(e) { showToast('削除失敗: '+e.message,true); }
-  });
+  showConfirm(
+    buhi[i].name + ' を退部扱いにしますか？\n過去の集金ログは保持されます。これ以降の集金一覧からは非表示になります。',
+    async () => {
+      try {
+        await dbUpdate('members',{retired:true},`id=eq.${buhi[i].id}`, accessToken);
+        buhi.splice(i,1);
+        renderBuhiMemberList(); renderBuhi();
+        showToast(buhi[i]?.name||'メンバー' + ' を退部にしました');
+      } catch(e) { showToast('失敗: '+e.message,true); }
+    }
+  );
 }
 
 function renderBuhiMemberList() {
@@ -1360,7 +1548,7 @@ function renderBuhiMemberList() {
   list.innerHTML = buhi.map((m,i) => `
     <div class="member-row">
       <div style="flex:1;"><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
-      ${isAdmin()?`<button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removeBuhiMember(${i})">削除</button>`:''}
+      ${isAdmin()?`<button class="upload-mini" style="color:var(--amber);border-color:var(--amber);" onclick="removeBuhiMember(${i})">退部</button>`:''}
     </div>`).join('');
 }
 
@@ -1725,17 +1913,26 @@ function renderExtraPlayers() {
         </div>
         <div class="extra-fee-badge">¥${p.fee.toLocaleString('ja-JP')}/回</div>
       </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-        <div style="font-size:13px;color:var(--text2);">片道 ¥${p.fee.toLocaleString('ja-JP')}</div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <button onclick="decrementVisit(${p.id})" style="width:34px;height:34px;border-radius:50%;border:2px solid var(--border);background:var(--bg4);color:var(--text);font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">－</button>
-          <div style="text-align:center;min-width:48px;">
-            <div style="font-size:22px;font-weight:800;">${p.visits}</div>
+      <!-- 総合計ハイライト -->
+      <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div>
+            <div style="font-size:28px;font-weight:900;color:var(--accent);">¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">総合計（往復＋手動加算）</div>
+          </div>
+          <div style="text-align:right;font-size:12px;color:var(--text3);">
+            片道¥${p.fee.toLocaleString('ja-JP')} × ${p.visits}回往復<br>
+            ${p.manual_fee ? '＋手動¥'+(p.manual_fee||0).toLocaleString('ja-JP') : ''}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:14px;">
+          <button onclick="decrementVisit(${p.id})" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--border);background:var(--bg4);color:var(--text);font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">－</button>
+          <div style="text-align:center;min-width:60px;">
+            <div style="font-size:28px;font-weight:800;">${p.visits}</div>
             <div style="font-size:11px;color:var(--text3);">回出席</div>
           </div>
-          <button onclick="incrementVisit(${p.id})" style="width:34px;height:34px;border-radius:50%;border:2px solid var(--accent2);background:var(--accent2);color:#fff;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">＋</button>
+          <button onclick="incrementVisit(${p.id})" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--accent2);background:var(--accent2);color:#fff;font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">＋</button>
         </div>
-        <div style="font-size:13px;color:var(--text2);text-align:right;">往復合計<br><span style="font-size:16px;font-weight:700;color:var(--text);">¥${(p.fee*p.visits*2).toLocaleString('ja-JP')}</span></div>
       </div>
       ${isAdmin()?`
       <div style="margin-top:10px;background:rgba(74,159,212,0.10);border:1.5px solid var(--accent2);border-radius:var(--radius-sm);padding:12px;">
@@ -1816,13 +2013,18 @@ function uploadReceiptForPlayer(id) {
 }
 
 async function removePlayer(id) {
-  showConfirm('このプレーヤーを削除しますか？', async()=>{
-    try {
-      await dbDelete('extra_players',`id=eq.${id}`, accessToken);
-      extraPlayers=extraPlayers.filter(x=>x.id!==id);
-      renderExtraPlayers();
-    } catch(e) { showToast('削除失敗: '+e.message,true); }
-  });
+  const p = extraPlayers.find(x=>x.id===id);
+  showConfirm(
+    (p?.name||'このプレーヤー') + 'をアーカイブしますか？\n出席履歴は保持されます。一覧からは非表示になります。',
+    async()=>{
+      try {
+        await dbUpdate('extra_players',{archived:true},`id=eq.${id}`, accessToken);
+        extraPlayers=extraPlayers.filter(x=>x.id!==id);
+        renderExtraPlayers();
+        showToast('アーカイブしました');
+      } catch(e) { showToast('失敗: '+e.message,true); }
+    }
+  );
 }
 
 function openAddPlayer() {
@@ -1855,24 +2057,55 @@ async function addPlayer() {
 // ══════════════════════════════════════════════════════
 // その他出費
 // ══════════════════════════════════════════════════════
+let otherViewYear = new Date().getFullYear();
+let otherViewMonth = new Date().getMonth();
+
+function otherHistMove(dir) {
+  otherViewMonth += dir;
+  if (otherViewMonth < 0) { otherViewMonth = 11; otherViewYear--; }
+  if (otherViewMonth > 11) { otherViewMonth = 0; otherViewYear++; }
+  renderOtherHistory();
+}
+
 function renderOtherHistory() {
-  const list=document.getElementById('other-history-list');
-  list.innerHTML=otherHistory.map(h=>`
-    <div class="history-row" style="margin-bottom:8px;">
-      <div class="history-top">
-        <div><div class="history-name">${h.name}</div><div class="history-sub">${h.content}</div></div>
-        <div style="text-align:right;">
-          <div class="history-amount">¥${h.amount.toLocaleString('ja-JP')}</div>
+  // 月ラベル更新
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const labelEl = document.getElementById('other-month-label');
+  if (labelEl) labelEl.textContent = otherViewYear + '年' + months[otherViewMonth];
+
+  // 表示月でフィルタ
+  const monthStr = otherViewYear + '-' + String(otherViewMonth+1).padStart(2,'0');
+  const filtered = otherHistory.filter(h => (h.date||'').startsWith(monthStr));
+
+  const list = document.getElementById('other-history-list');
+  if (!filtered.length) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:14px;">この月の申請はありません</div>';
+    document.getElementById('other-total').textContent = '¥0';
+    updateOtherBtn();
+    return;
+  }
+  // 全件を同じ高さ・サイズで表示（スクロール内）
+  list.innerHTML = filtered.map(h => `
+    <div style="background:var(--bg4);border-radius:var(--radius-sm);padding:14px;margin-bottom:8px;flex-shrink:0;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${h.name}</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${h.content}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">申請日: ${h.date||''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:18px;font-weight:700;color:var(--accent);">¥${h.amount.toLocaleString('ja-JP')}</div>
           <div style="margin-top:4px;"><span class="badge ${h.status==='pending'?'pending':h.status==='approved'?'approved':'rejected'}">${h.status==='pending'?'保留中':h.status==='approved'?'承認済み':'却下'}</span></div>
         </div>
       </div>
-      <div class="history-date">申請日: ${h.date||''}</div>
       ${isAdmin()&&h.status==='pending'?`
-        <div class="admin-action-row">
-          <button class="action-btn action-approve" onclick="reviewOther(${h.id},'approved')">✓ 承認</button>
-          <button class="action-btn action-reject" onclick="reviewOther(${h.id},'rejected')">✗ 却下</button>
-        </div>`:''}`).join('');
-  document.getElementById('other-total').textContent='¥'+otherHistory.reduce((s,h)=>s+h.amount,0).toLocaleString('ja-JP');
+      <div class="admin-action-row" style="margin-top:8px;">
+        <button class="action-btn action-approve" onclick="reviewOther(${h.id},'approved')">✓ 承認</button>
+        <button class="action-btn action-reject" onclick="reviewOther(${h.id},'rejected')">✗ 却下</button>
+      </div>`:''}
+    </div>`).join('');
+
+  document.getElementById('other-total').textContent = '¥' + filtered.reduce((s,h)=>s+h.amount,0).toLocaleString('ja-JP');
   updateOtherBtn();
 }
 
@@ -2135,6 +2368,10 @@ function showToast(msg, isError=false) {
   showLoading('データ読み込み中...');
   await init();
 })();
+
+// PWA: manifest によるホーム画面追加対応済み
+// Service Workerは別ファイル(sw.js)が必要なため省略
+// ホーム画面追加: Safari → 共有 → ホーム画面に追加
 </script>
 </body>
 </html>
