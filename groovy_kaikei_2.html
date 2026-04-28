@@ -1954,14 +1954,25 @@ function uploadReceiptForPlayer(id) {
 async function removePlayer(id) {
   const p = extraPlayers.find(x=>x.id===id);
   showConfirm(
-    (p?.name||'このプレーヤー') + 'をアーカイブしますか？\n出席履歴は保持されます。一覧からは非表示になります。',
+    (p?.name||'このプレーヤー') + 'を削除しますか？\n（Supabaseにarchivedカラムがあればアーカイブ、なければ完全削除します）',
     async()=>{
       try {
+        // まずarchivedカラムでアーカイブを試みる
         await dbUpdate('extra_players',{archived:true},`id=eq.${id}`, accessToken);
         extraPlayers=extraPlayers.filter(x=>x.id!==id);
         renderExtraPlayers();
         showToast('アーカイブしました');
-      } catch(e) { showToast('失敗: '+e.message,true); }
+      } catch(e) {
+        // archivedカラムがない場合は完全削除にフォールバック
+        try {
+          await dbDelete('extra_players',`id=eq.${id}`, accessToken);
+          extraPlayers=extraPlayers.filter(x=>x.id!==id);
+          renderExtraPlayers();
+          showToast('削除しました');
+        } catch(e2) {
+          showToast('失敗: '+e2.message, true);
+        }
+      }
     }
   );
 }
