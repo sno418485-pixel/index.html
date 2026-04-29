@@ -1037,16 +1037,14 @@ async function dbUpsert(table, data, onConflict, token) {
 // LINE NOTIFY
 // ══════════════════════════════════════════════════════
 async function sendLineNotify(message) {
-  // GAS（Google Apps Script）経由でLINE公式アカウントに通知を送る
-  // CORSを回避するためno-corsモードで送信（GAS側でPOSTを受け取る）
+  // GAS経由でLINE公式アカウントに通知（全フォロワーにブロードキャスト）
   console.log('📨 LINE通知:', message);
   try {
-    // GASはno-corsでもPOSTを受け取れる
     await fetch(GAS_URL, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'message=' + encodeURIComponent(message)
+      body: 'message=' + encodeURIComponent(message) + '&broadcast=true'
     });
     console.log('✅ GAS経由で送信しました');
   } catch(e) {
@@ -1873,22 +1871,19 @@ function renderExtraPlayers() {
           <button onclick="incrementVisit(${p.id})" style="width:40px;height:40px;border-radius:50%;border:2px solid var(--accent2);background:var(--accent2);color:#fff;font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">＋</button>
         </div>
       </div>
-      ${isAdmin()?`
+      ${/* 手動加算エリア: 管理者もゲストも使える */''}
       <div style="margin-top:10px;background:rgba(74,159,212,0.10);border:1.5px solid var(--accent2);border-radius:var(--radius-sm);padding:12px;">
         <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;">✚ 手動加算</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">今の合計: ¥${(p.manual_fee||0).toLocaleString('ja-JP')}　→　追加したい額を入力してください</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input class="form-input" style="flex:1;margin-bottom:0;padding:8px 10px;font-size:15px;font-weight:700;background:var(--bg);border-color:var(--accent2);" type="number"
-            value="${p.manual_fee||0}" placeholder="0"
-            onchange="updateManualFee(${p.id},this.value)">
-          <input class="form-input" style="flex:2;margin-bottom:0;padding:8px 10px;font-size:13px;background:var(--bg);"
-            value="${p.manual_note||''}" placeholder="備考（例: 定期区間外）"
-            onchange="updateManualNote(${p.id},this.value)">
+          <input class="form-input" id="manual-add-${p.id}" style="flex:1;margin-bottom:0;padding:8px 10px;font-size:15px;font-weight:700;background:var(--bg);border-color:var(--accent2);" type="number" placeholder="追加する金額">
+          <button onclick="addManualFee(${p.id})" style="background:var(--accent2);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;padding:8px 14px;cursor:pointer;white-space:nowrap;">追加</button>
         </div>
+        <input class="form-input" id="manual-note-${p.id}" style="margin-top:6px;margin-bottom:0;padding:8px 10px;font-size:13px;background:var(--bg);" placeholder="備考（例: 定期区間外）" value="${p.manual_note||''}">
         <div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:8px;text-align:right;border-top:1px solid rgba(74,159,212,0.3);padding-top:8px;">
           🧾 総合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}
         </div>
-      </div>`:
-      `${p.manual_fee ? '<div style="margin-top:8px;font-size:13px;color:var(--text2);background:rgba(74,159,212,0.08);border-radius:6px;padding:6px 10px;">＋手動加算: ¥' + (p.manual_fee||0).toLocaleString('ja-JP') + (p.manual_note ? ' (' + p.manual_note + ')' : '') + '<br>総合計: ¥' + (p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP') + '</div>' : ''}`}
+      </div>
       <div class="extra-receipt-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
         <div style="font-size:12px;color:var(--text2);">領収証:</div>
         ${p.receipt_name?`<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`:`<div class="receipt-status-none">未アップロード</div>`}
@@ -1923,6 +1918,28 @@ async function decrementVisit(id) {
   } catch(e) { p.visits++; renderExtraPlayers(); showToast('更新失敗: '+e.message,true); }
 }
 
+async function addManualFee(id) {
+  const p = extraPlayers.find(x=>x.id===id); if (!p) return;
+  const inputEl = document.getElementById('manual-add-'+id);
+  const noteEl  = document.getElementById('manual-note-'+id);
+  const addVal  = parseInt(inputEl?.value) || 0;
+  const note    = noteEl?.value?.trim() || p.manual_note || '';
+  if (!addVal) { showToast('追加する金額を入力してください', true); return; }
+  const newTotal = (p.manual_fee || 0) + addVal;
+  p.manual_fee = newTotal;
+  p.manual_note = note;
+  renderExtraPlayers();
+  try {
+    await dbUpdate('extra_players', {manual_fee: newTotal, manual_note: note}, `id=eq.${id}`, accessToken);
+    showToast('¥'+addVal.toLocaleString('ja-JP')+' 追加 → 合計¥'+newTotal.toLocaleString('ja-JP'));
+    await sendLineNotify(`🚗【交通費 手動加算】\n${p.name}（${p.part}）\n追加: ¥${addVal.toLocaleString('ja-JP')}\n手動合計: ¥${newTotal.toLocaleString('ja-JP')}\n備考: ${note||'なし'}`);
+  } catch(e) {
+    p.manual_fee = newTotal - addVal;
+    renderExtraPlayers();
+    showToast('保存失敗: '+e.message, true);
+  }
+}
+
 async function updateManualFee(id, val) {
   const p=extraPlayers.find(x=>x.id===id); if (!p) return;
   p.manual_fee=parseInt(val)||0;
@@ -1954,24 +1971,17 @@ function uploadReceiptForPlayer(id) {
 async function removePlayer(id) {
   const p = extraPlayers.find(x=>x.id===id);
   showConfirm(
-    (p?.name||'このプレーヤー') + 'を削除しますか？\n（Supabaseにarchivedカラムがあればアーカイブ、なければ完全削除します）',
+    (p?.name||'このプレーヤー') + 'を削除しますか？\n出席データも削除されます。',
     async()=>{
+      // 楽観的UI更新（先に画面から消す）
+      extraPlayers = extraPlayers.filter(x=>x.id!==id);
+      renderExtraPlayers();
+      showToast('削除しました');
+      // DBは非同期で削除（失敗してもUIは消えた状態のまま）
       try {
-        // まずarchivedカラムでアーカイブを試みる
-        await dbUpdate('extra_players',{archived:true},`id=eq.${id}`, accessToken);
-        extraPlayers=extraPlayers.filter(x=>x.id!==id);
-        renderExtraPlayers();
-        showToast('アーカイブしました');
+        await dbDelete('extra_players', `id=eq.${id}`, accessToken);
       } catch(e) {
-        // archivedカラムがない場合は完全削除にフォールバック
-        try {
-          await dbDelete('extra_players',`id=eq.${id}`, accessToken);
-          extraPlayers=extraPlayers.filter(x=>x.id!==id);
-          renderExtraPlayers();
-          showToast('削除しました');
-        } catch(e2) {
-          showToast('失敗: '+e2.message, true);
-        }
+        console.warn('DB削除失敗（再読み込みで元に戻ります）:', e.message);
       }
     }
   );
