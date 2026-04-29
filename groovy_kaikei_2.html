@@ -1889,12 +1889,18 @@ function renderExtraPlayers() {
           🧾 総合計: ¥${(p.fee*p.visits*2+(p.manual_fee||0)).toLocaleString('ja-JP')}
         </div>
       </div>
+      <!-- 領収証: 常に全員アップロード可能 -->
       <div class="extra-receipt-row" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
         <div style="font-size:12px;color:var(--text2);">領収証:</div>
-        ${p.receipt_name?`<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`:`<div class="receipt-status-none">未アップロード</div>`}
-        <div style="display:flex;gap:8px;">
+        ${p.receipt_name
+          ? `<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`
+          : `<div class="receipt-status-none">未アップロード</div>`}
+        <div style="display:flex;gap:8px;align-items:center;">
           <button class="upload-mini" onclick="uploadReceiptForPlayer(${p.id})">${p.receipt_name?'変更':'アップロード'}</button>
-          ${isAdmin()?`<button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removePlayer(${p.id})">削除</button>`:''}
+          <!-- アーカイブ: 管理者のみ -->
+          ${isAdmin()
+            ? `<button class="upload-mini" style="color:var(--amber);border-color:var(--amber);" onclick="removePlayer(${p.id})">アーカイブ</button>`
+            : ''}
         </div>
       </div>
     </div>`).join('');
@@ -2003,20 +2009,28 @@ function uploadReceiptForPlayer(id) {
 }
 
 async function removePlayer(id) {
-  if (!isAdmin()) { showToast('削除は管理者のみです', true); return; }
+  if (!isAdmin()) { showToast('管理者のみ操作できます', true); return; }
   const p = extraPlayers.find(x=>x.id===id);
   showConfirm(
-    (p?.name||'このプレーヤー') + 'を削除しますか？\n出席データも削除されます。',
+    (p?.name||'このプレーヤー') + 'をアーカイブしますか？\n一覧から非表示になります。出席データはDBに残ります。',
     async()=>{
+      // 先に画面から消す（楽観的更新）
       extraPlayers = extraPlayers.filter(x=>x.id!==id);
       renderExtraPlayers();
       try {
-        await dbDelete('extra_players', `id=eq.${id}`, accessToken);
-        showToast('削除しました');
+        // archived カラムがあればアーカイブ、なければ削除
+        try {
+          await dbUpdate('extra_players', {archived: true}, `id=eq.${id}`, accessToken);
+          showToast('アーカイブしました');
+        } catch(archiveErr) {
+          // archivedカラムなし → 完全削除にフォールバック
+          await dbDelete('extra_players', `id=eq.${id}`, accessToken);
+          showToast('削除しました');
+        }
       } catch(e) {
-        showToast('削除失敗: ' + e.message, true);
-        await loadExtraPlayers();
-        renderExtraPlayers();
+        showToast('失敗: ' + e.message, true);
+        // 失敗時は再読み込みして元に戻す
+        try { await loadExtraPlayers(); renderExtraPlayers(); } catch(_) {}
       }
     }
   );
