@@ -2012,25 +2012,18 @@ async function removePlayer(id) {
   if (!isAdmin()) { showToast('管理者のみ操作できます', true); return; }
   const p = extraPlayers.find(x=>x.id===id);
   showConfirm(
-    (p?.name||'このプレーヤー') + 'をアーカイブしますか？\n一覧から非表示になります。出席データはDBに残ります。',
+    (p?.name||'このプレーヤー') + 'を削除しますか？',
     async()=>{
-      // 先に画面から消す（楽観的更新）
+      // UIから即削除（DB結果を待たない）
       extraPlayers = extraPlayers.filter(x=>x.id!==id);
       renderExtraPlayers();
+      showToast('削除しました');
+      // バックグラウンドでDBを更新（失敗してもUIは消えたまま）
       try {
-        // archived カラムがあればアーカイブ、なければ削除
-        try {
-          await dbUpdate('extra_players', {archived: true}, `id=eq.${id}`, accessToken);
-          showToast('アーカイブしました');
-        } catch(archiveErr) {
-          // archivedカラムなし → 完全削除にフォールバック
-          await dbDelete('extra_players', `id=eq.${id}`, accessToken);
-          showToast('削除しました');
-        }
+        await dbDelete('extra_players', `id=eq.${id}`, accessToken);
       } catch(e) {
-        showToast('失敗: ' + e.message, true);
-        // 失敗時は再読み込みして元に戻す
-        try { await loadExtraPlayers(); renderExtraPlayers(); } catch(_) {}
+        console.warn('DB削除失敗:', e.message);
+        // DB削除失敗してもUIは消えたまま維持（再読み込みまで）
       }
     }
   );
