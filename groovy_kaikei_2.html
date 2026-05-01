@@ -2317,7 +2317,11 @@ function showConfirm(msg,cb) {
   document.getElementById('confirm-msg').textContent=msg;
   confirmCallback=cb;
   document.getElementById('confirm-dialog').classList.add('open');
-  document.getElementById('confirm-ok-btn').onclick=()=>{ closeConfirm(); if(confirmCallback) confirmCallback(); };
+  document.getElementById('confirm-ok-btn').onclick=()=>{
+    const fn = confirmCallback; // 先にコピー
+    closeConfirm();             // ここでconfirmCallback=nullになる
+    if(fn) fn();                // コピーした関数を実行
+  };
 }
 function closeConfirm() { document.getElementById('confirm-dialog').classList.remove('open'); confirmCallback=null; }
 
