@@ -1,7 +1,8 @@
 <!--
-  ══════════════════════════════════════════════════════
-  ★★★ 必ずSupabase SQL Editorで実行してください ★★★
-  ══════════════════════════════════════════════════════
+  ╔══════════════════════════════════════════════════════╗
+  ║  Groovy 会計 - 最終アップデート版                    ║
+  ║  (過去月の再編集機能付き・バグ修正完了)              ║
+  ╚══════════════════════════════════════════════════════╝
 
   -- ① 援助金テーブル作成
   create table if not exists enjo_requests (
@@ -281,6 +282,7 @@ select.form-input{-webkit-appearance:none;appearance:none;}
 .mhd-row:last-child{border-bottom:none;}
 .mhd-paid{color:var(--green);font-size:13px;font-weight:700;}
 .mhd-unpaid{color:var(--red);font-size:13px;font-weight:700;}
+.edit-badge{background:var(--amber);color:#fff;font-size:11px;padding:2px 8px;border-radius:4px;margin-left:8px;font-weight:700;vertical-align:middle;}
 
 /* ── Modals ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;
@@ -450,8 +452,14 @@ select.form-input{-webkit-appearance:none;appearance:none;}
   <div id="screen-buhi" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('home')">← ホームに戻る</button>
-      <div class="page-title">部費集金</div>
+      <div class="page-title">部費集金<span id="edit-mode-badge" class="edit-badge" style="display:none;">編集中</span></div>
     </div>
+    <!-- ★過去月再編集用アラートバー★ -->
+    <div id="edit-notice" style="display:none;background:rgba(245,158,11,0.2);padding:10px 14px;border-radius:8px;margin-bottom:16px;text-align:center;font-size:13px;color:var(--amber);">
+      <div style="font-weight:700;margin-bottom:4px;" id="edit-notice-text">過去の月を編集しています。</div>
+      <button onclick="exitEditMode()" style="background:var(--amber);color:#000;border:none;padding:6px 12px;border-radius:6px;font-weight:700;cursor:pointer;">現在の月（集金モード）に戻る</button>
+    </div>
+    
     <div class="tab-bar">
       <button class="tab-btn active" id="tab-btn-collect" onclick="switchBuhiTab('collect')">回収状況</button>
       <button class="tab-btn" id="tab-btn-member" onclick="switchBuhiTab('member')">メンバー追加</button>
@@ -480,7 +488,7 @@ select.form-input{-webkit-appearance:none;appearance:none;}
       </div>
       <div id="buhi-list"></div>
       <div id="buhi-admin-actions" style="display:none;">
-        <button class="save-month-btn" onclick="saveMonthSnapshot()">今月の状況を保存する</button>
+        <button class="save-month-btn" onclick="saveMonthSnapshot()" id="buhi-save-btn">この月の状況を保存する</button>
       </div>
     </div>
     <!-- メンバー追加（admin only） -->
@@ -907,8 +915,6 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 // ══════════════════════════════════════════════════════
 // LINE NOTIFY CONFIG
-// 以下のトークンをLINE Notifyで取得したものに書き換えてください
-// https://notify-bot.line.me/ja/manage
 // ══════════════════════════════════════════════════════
 const LINE_TOKEN = 'ZvSlpclmJ4uedih92y0jltto+8egkPwGjJqKgqkbgBDGzAa3bKVMlyANlOy7oxdyIukJsqpPlvHY91hqr1KKUWxWT/hHtZKI8Aod7g2cwORqgcU/LrKA/j22+RLylZr/ZolxHcaYdY2jjtI/Vz34JQdB04t89/1O/w1cDnyilFU=';
 
@@ -916,7 +922,6 @@ const LINE_TOKEN = 'ZvSlpclmJ4uedih92y0jltto+8egkPwGjJqKgqkbgBDGzAa3bKVMlyANlOy7
 // HTTP HELPERS
 // ══════════════════════════════════════════════════════
 function getHeaders(token) {
-  // tokenがnullのゲスト時はanon keyをそのままBearerに使う
   const bearer = token || SUPABASE_KEY;
   return {
     'Content-Type': 'application/json',
@@ -964,8 +969,6 @@ async function dbUpsert(table, data, onConflict, token) {
 // LINE NOTIFY
 // ══════════════════════════════════════════════════════
 async function sendLineNotify(message) {
-  // CORS制限のためプロキシ経由が必要な場合があります
-  // 本番環境ではSupabase Edge Functionを経由することを推奨します
   try {
     await fetch('https://notify-api.line.me/api/notify', {
       method: 'POST',
@@ -974,7 +977,7 @@ async function sendLineNotify(message) {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: 'message=' + encodeURIComponent(message),
-      mode: 'no-cors' // CORSをバイパス（レスポンスは読めないが送信は可能）
+      mode: 'no-cors'
     });
   } catch(e) {
     console.warn('LINE通知送信:', e);
@@ -982,7 +985,7 @@ async function sendLineNotify(message) {
 }
 
 // ══════════════════════════════════════════════════════
-// LOADING / AUTH HELPERS（最初に定義）
+// LOADING / AUTH HELPERS
 // ══════════════════════════════════════════════════════
 function showLoading(msg) {
   const el = document.getElementById('loading-overlay');
@@ -994,26 +997,20 @@ function hideLoading() {
   const el = document.getElementById('loading-overlay');
   if (el) el.classList.add('hidden');
 }
-// 管理者ログインモーダルを開く
 function openAdminLogin() {
   document.getElementById('auth-overlay').classList.remove('hidden');
   document.getElementById('login-email').value = '';
   document.getElementById('login-pass').value = '';
 }
-// 管理者ログインモーダルを閉じる
 function closeAdminLogin() {
   document.getElementById('auth-overlay').classList.add('hidden');
-}
-// 旧showAuth互換（ゲストモードでは使わないが残す）
-function showAuth() {
-  openAdminLogin();
 }
 
 // ══════════════════════════════════════════════════════
 // AUTH STATE
 // ══════════════════════════════════════════════════════
-let currentUser = null;   // Supabase auth user
-let currentProfile = null; // profiles row
+let currentUser = null;
+let currentProfile = null;
 let accessToken = null;
 
 function isAdmin() { return currentProfile?.role === 'admin'; }
@@ -1021,12 +1018,6 @@ function isAdmin() { return currentProfile?.role === 'admin'; }
 // ══════════════════════════════════════════════════════
 // AUTH FUNCTIONS
 // ══════════════════════════════════════════════════════
-function switchAuthTab(tab) {
-  document.getElementById('auth-login-panel').style.display = tab === 'login' ? 'block' : 'none';
-  document.getElementById('auth-signup-panel').style.display = tab === 'signup' ? 'block' : 'none';
-  document.querySelectorAll('.auth-tab').forEach((b,i) => b.classList.toggle('active', (i===0&&tab==='login')||(i===1&&tab==='signup')));
-}
-
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-pass').value;
@@ -1048,43 +1039,6 @@ async function doLogin() {
   }
 }
 
-async function doSignup() {
-  const name = document.getElementById('signup-name').value.trim();
-  const partSel = document.getElementById('signup-part').value;
-  const partOther = document.getElementById('signup-part-other').value.trim();
-  const part = partSel === 'その他' ? (partOther || 'その他') : partSel;
-  const email = document.getElementById('signup-email').value.trim();
-  const pass = document.getElementById('signup-pass').value;
-  if (!name||!email||!pass) { showToast('全項目を入力してください',true); return; }
-  if (pass.length < 6) { showToast('パスワードは6文字以上です',true); return; }
-  const btn = document.querySelector('#auth-signup-panel .submit-btn');
-  btn.textContent = '登録中...'; btn.disabled = true;
-  try {
-    const r = await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},
-      body: JSON.stringify({email, password: pass})
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error_description || data.error || '登録に失敗しました');
-    if (data.access_token) {
-      // update profile with name and part
-      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${data.user.id}`, {
-        method:'PATCH',
-        headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+data.access_token,'Prefer':'return=representation'},
-        body: JSON.stringify({name, part})
-      });
-      await onLoginSuccess(data);
-    } else {
-      showToast('確認メールを送信しました。受信トレイをご確認ください。');
-      btn.textContent = '登録する'; btn.disabled = false;
-    }
-  } catch(e) {
-    showToast(e.message, true);
-    btn.textContent = '登録する'; btn.disabled = false;
-  }
-}
-
 async function onLoginSuccess(data) {
   accessToken = data.access_token;
   currentUser = data.user;
@@ -1101,7 +1055,6 @@ async function onLoginSuccess(data) {
 
   if (currentUser.email === 'groovy2026blue@gmail.com') currentProfile.role = 'admin';
 
-  // データを再読み込みしてUIを管理者モードに切り替え
   showLoading('管理者モードに切り替え中...');
   await init();
 }
@@ -1114,19 +1067,12 @@ async function doLogout() {
   } catch(e) {}
   localStorage.removeItem('sb_token');
   currentUser = null; currentProfile = null; accessToken = null;
-  // ゲストモードでデータ再読み込み
   showLoading('ゲストモードに戻ります...');
   await init();
 }
 
-// パート「その他」選択時に入力欄表示
-function onPartChange(selectId, wrapId) {
-  const v = document.getElementById(selectId).value;
-  document.getElementById(wrapId).style.display = v === 'その他' ? 'block' : 'none';
-}
-
 // ══════════════════════════════════════════════════════
-// STATE
+// STATE & ★ RE-EDIT FEATURES
 // ══════════════════════════════════════════════════════
 let buhi = [];
 let repairHistory = [];
@@ -1140,21 +1086,26 @@ let enjoRequests = [];
 let enjoLimit = 0;
 let enjoCashChecked = false;
 let apReceiptFile = null;
-let buhiTab = 'collect';
-let histViewYear = new Date().getFullYear();
-let histViewMonth = new Date().getMonth();
-let calYear = new Date().getFullYear();
-let calMonth = new Date().getMonth();
+
 const NOW_YEAR = new Date().getFullYear();
 const NOW_MONTH = new Date().getMonth();
+
+// ★再編集用
+let activeYear = NOW_YEAR;
+let activeMonth = NOW_MONTH;
+
+let buhiTab = 'collect';
+let histViewYear = NOW_YEAR;
+let histViewMonth = NOW_MONTH;
+let calYear = NOW_YEAR;
+let calMonth = NOW_MONTH;
 let currentEventId = null;
 const chkState = { chk1: false, chk2: false };
 
 // ══════════════════════════════════════════════════════
-// NAVIGATION  ← 画面遷移バグ修正済み
+// NAVIGATION
 // ══════════════════════════════════════════════════════
 function go(id) {
-  // 全スクリーンを確実に非表示
   document.querySelectorAll('.screen').forEach(s => {
     s.classList.remove('active');
     s.style.display = 'none';
@@ -1165,13 +1116,11 @@ function go(id) {
     el.classList.add('active');
     setTimeout(() => { el.scrollTop = 0; }, 0);
   }
-  // 画面ごとの初期化
   if (id === 'home') renderHome();
   if (id === 'buhi') switchBuhiTab('collect');
   if (id === 'extra') { renderCalendar(); renderExtraPlayers(); }
   if (id === 'repair') {
     document.getElementById('repair-admin-btn').style.display = isAdmin() ? 'block' : 'none';
-    // 部費利用状況（修理履歴）は管理者のみ
     const histBtn = document.getElementById('repair-history-btn');
     if (histBtn) histBtn.style.display = isAdmin() ? 'block' : 'none';
   }
@@ -1186,9 +1135,8 @@ function go(id) {
 // INIT
 // ══════════════════════════════════════════════════════
 async function init() {
-  // 各データを個別に読み込む（1つ失敗しても他は続行）
   const loads = [
-    ['members', loadMembers],
+    ['members', () => loadMembers(activeYear, activeMonth)], // ★ アクティブな年月をロード
     ['repair', loadRepairHistory],
     ['extra', loadExtraPlayers],
     ['other', loadOtherHistory],
@@ -1227,9 +1175,10 @@ function renderHome() {
 // ══════════════════════════════════════════════════════
 // LOAD FUNCTIONS
 // ══════════════════════════════════════════════════════
-async function loadMembers() {
-  const members = await dbGet('members','order=id.asc', accessToken);
-  const payments = await dbGet('buhi_payments',`year=eq.${NOW_YEAR}&month=eq.${NOW_MONTH}`, accessToken);
+async function loadMembers(year, month) {
+  // retired=true (退部済み) のメンバーは弾く
+  const members = await dbGet('members','retired=neq.true&order=id.asc', accessToken);
+  const payments = await dbGet('buhi_payments',`year=eq.${year}&month=eq.${month}`, accessToken);
   const payMap = {};
   payments.forEach(p => { payMap[p.member_id] = { paid: p.paid, rowId: p.id }; });
   buhi = members.map(m => ({
@@ -1238,15 +1187,9 @@ async function loadMembers() {
     payRowId: payMap[m.id]?.rowId ?? null
   }));
 }
-async function loadRepairHistory() {
-  repairHistory = await dbGet('repair_requests','order=created_at.desc', accessToken);
-}
-async function loadExtraPlayers() {
-  extraPlayers = await dbGet('extra_players','order=created_at.asc', accessToken);
-}
-async function loadOtherHistory() {
-  otherHistory = await dbGet('other_expenses','order=created_at.desc', accessToken);
-}
+async function loadRepairHistory() { repairHistory = await dbGet('repair_requests','order=created_at.desc', accessToken); }
+async function loadExtraPlayers() { extraPlayers = await dbGet('extra_players','archived=neq.true&order=created_at.asc', accessToken); }
+async function loadOtherHistory() { otherHistory = await dbGet('other_expenses','order=created_at.desc', accessToken); }
 async function loadSnapshots() {
   const rows = await dbGet('buhi_snapshots','order=year.desc,month.desc', accessToken);
   monthlySnapshots = rows.map(s => ({ ...s, members: s.members_json || [] }));
@@ -1261,18 +1204,19 @@ async function loadDashboard() {
   try {
     const rows = await dbGet('finance_dashboard','order=id.asc&limit=1', accessToken);
     dashboardData = rows[0] || null;
-  } catch(e) {
-    dashboardData = null;
-    console.warn('dashboard load failed:', e.message);
-  }
+  } catch(e) { dashboardData = null; }
 }
 async function loadEventCollections() {
+  try { eventCollections = await dbGet('event_collections','archived=eq.false&order=created_at.desc', accessToken); }
+  catch(e) { eventCollections = []; }
+}
+async function loadEnjoData() {
   try {
-    eventCollections = await dbGet('event_collections','archived=eq.false&order=created_at.desc', accessToken);
-  } catch(e) {
-    eventCollections = [];
-    console.warn('event_collections load failed:', e.message);
-  }
+    const rows = await dbGet('settings', 'key=eq.enjo_limit', accessToken);
+    enjoLimit = rows[0] ? parseInt(rows[0].value) || 0 : 0;
+  } catch(e) { enjoLimit = 0; }
+  try { enjoRequests = await dbGet('enjo_requests', 'order=created_at.desc', accessToken); }
+  catch(e) { enjoRequests = []; }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1286,19 +1230,33 @@ function switchBuhiTab(tab) {
   });
   if (tab==='collect') { renderBuhi(); renderDeadlineCard(); }
   if (tab==='member') renderBuhiMemberList();
-  if (tab==='history') { histViewYear=NOW_YEAR; histViewMonth=NOW_MONTH; renderBuhiHistory(); }
+  if (tab==='history') renderBuhiHistory();
 }
 
 function renderBuhi() {
+  const isEditingPast = (activeYear !== NOW_YEAR || activeMonth !== NOW_MONTH);
+  
+  // UIの切り替え
+  document.getElementById('edit-mode-badge').style.display = isEditingPast ? 'inline-block' : 'none';
+  document.getElementById('edit-notice').style.display = isEditingPast ? 'block' : 'none';
+  if (isEditingPast) {
+    document.getElementById('edit-notice-text').textContent = `⚠ 過去の月（${activeYear}年${activeMonth+1}月）を再編集しています`;
+    document.getElementById('buhi-save-btn').textContent = 'この月の修正を保存する';
+  } else {
+    document.getElementById('buhi-save-btn').textContent = '今月の状況を保存する';
+  }
+
   const paid = buhi.filter(m=>m.paid).length;
   const total = buhi.length;
   const pct = total ? Math.round(paid/total*100) : 0;
+  
   document.getElementById('buhi-num').innerHTML = paid+' <span>/ '+total+'</span>';
   document.getElementById('buhi-bar').style.width = pct+'%';
   document.getElementById('buhi-pct').textContent = pct+'%';
-  // admin controls
+  
   document.getElementById('deadline-change-btn').style.display = isAdmin() ? 'inline-block' : 'none';
   document.getElementById('buhi-admin-actions').style.display = isAdmin() ? 'block' : 'none';
+  
   document.getElementById('buhi-list').innerHTML = buhi.map((m,i) => `
     <div class="member-row">
       <div><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
@@ -1316,7 +1274,7 @@ async function toggleBuhi(i) {
     if (m.payRowId) {
       await dbUpdate('buhi_payments',{paid:newPaid},`id=eq.${m.payRowId}`, accessToken);
     } else {
-      const rows = await dbInsert('buhi_payments',{member_id:m.id,year:NOW_YEAR,month:NOW_MONTH,paid:newPaid}, accessToken);
+      const rows = await dbInsert('buhi_payments',{member_id:m.id, year:activeYear, month:activeMonth, paid:newPaid}, accessToken);
       if (rows&&rows[0]) { m.payRowId=rows[0].id; buhi[i].payRowId=rows[0].id; }
     }
   } catch(e) { m.paid=!newPaid; renderBuhi(); showToast('保存失敗: '+e.message,true); }
@@ -1329,7 +1287,7 @@ async function addBuhiMember() {
   const part = partSel==='その他' ? (partOther||'その他') : partSel;
   if (!name) { showToast('名前を入力してください'); return; }
   try {
-    const rows = await dbInsert('members',{name, part}, accessToken);
+    const rows = await dbInsert('members',{name, part, retired:false}, accessToken);
     if (rows&&rows[0]) buhi.push({id:rows[0].id,name:rows[0].name,part:rows[0].part,paid:false,payRowId:null});
     document.getElementById('buhi-add-name').value='';
     renderBuhiMemberList(); renderBuhi();
@@ -1338,17 +1296,16 @@ async function addBuhiMember() {
 }
 
 async function removeBuhiMember(i) {
-  showConfirm(buhi[i].name+' を削除しますか？', async () => {
+  showConfirm(buhi[i].name+' を退部(アーカイブ)にしますか？\n過去の集金履歴からは消えません。', async () => {
     try {
-      await dbDelete('members',`id=eq.${buhi[i].id}`, accessToken);
+      await dbUpdate('members', {retired: true}, `id=eq.${buhi[i].id}`, accessToken);
       buhi.splice(i,1);
       renderBuhiMemberList(); renderBuhi();
-    } catch(e) { showToast('削除失敗: '+e.message,true); }
+    } catch(e) { showToast('アーカイブ失敗: '+e.message,true); }
   });
 }
 
 function renderBuhiMemberList() {
-  // admin/member表示切り替え
   document.getElementById('member-add-form').style.display = isAdmin() ? 'block' : 'none';
   document.getElementById('member-readonly-notice').style.display = isAdmin() ? 'none' : 'block';
   document.getElementById('member-count').textContent = buhi.length;
@@ -1360,23 +1317,57 @@ function renderBuhiMemberList() {
   list.innerHTML = buhi.map((m,i) => `
     <div class="member-row">
       <div style="flex:1;"><div class="member-name">${m.name}</div><div class="member-part">${m.part}</div></div>
-      ${isAdmin()?`<button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removeBuhiMember(${i})">削除</button>`:''}
+      ${isAdmin()?`<button class="upload-mini" style="color:var(--amber);border-color:var(--amber);" onclick="removeBuhiMember(${i})">退部</button>`:''}
     </div>`).join('');
 }
 
+// ★ 過去修正にも対応した保存機能
 async function saveMonthSnapshot() {
-  const label = NOW_YEAR+'年'+(NOW_MONTH+1)+'月';
-  showConfirm(label+'の集金は終わりましたか？\n保存すると全員の支払い状況がリセットされ、月別履歴に記録されます。', async () => {
+  const label = activeYear+'年'+(activeMonth+1)+'月';
+  const isEditingPast = (activeYear !== NOW_YEAR || activeMonth !== NOW_MONTH);
+  
+  const msg = isEditingPast 
+    ? `${label}の修正内容を保存しますか？`
+    : `${label}の集金は終わりましたか？\n保存すると全員の支払い状況がリセットされ、月別履歴に記録されます。`;
+
+  showConfirm(msg, async () => {
     try {
       const membersJson = buhi.map(m=>({name:m.name,part:m.part,paid:m.paid}));
-      await dbUpsert('buhi_snapshots',{year:NOW_YEAR,month:NOW_MONTH,label,members_json:membersJson},'year,month', accessToken);
-      await Promise.all(buhi.map(m => m.payRowId ? dbUpdate('buhi_payments',{paid:false},`id=eq.${m.payRowId}`, accessToken) : Promise.resolve()));
-      buhi.forEach(m=>m.paid=false);
+      await dbUpsert('buhi_snapshots',{year:activeYear,month:activeMonth,label,members_json:membersJson},'year,month', accessToken);
+      
+      // 今月の確定の場合のみ全員リセット
+      if (!isEditingPast) {
+        await Promise.all(buhi.map(m => m.payRowId ? dbUpdate('buhi_payments',{paid:false},`id=eq.${m.payRowId}`, accessToken) : Promise.resolve()));
+        buhi.forEach(m=>m.paid=false);
+      }
+      
       renderBuhi();
       await loadSnapshots();
       showToast(label+'の集金状況を保存しました！');
     } catch(e) { showToast('保存失敗: '+e.message,true); }
   });
+}
+
+// ★ 過去編集モードへの突入
+async function enterEditMode(year, month) {
+  showLoading(`${year}年${month+1}月を読み込み中...`);
+  activeYear = year;
+  activeMonth = month;
+  await loadMembers(activeYear, activeMonth);
+  switchBuhiTab('collect');
+  hideLoading();
+  showToast(`${year}年${month+1}月の再編集モードに入りました`);
+}
+
+// ★ 過去編集モードからの脱出
+async function exitEditMode() {
+  showLoading(`現在の月を読み込み中...`);
+  activeYear = NOW_YEAR;
+  activeMonth = NOW_MONTH;
+  await loadMembers(activeYear, activeMonth);
+  renderBuhi();
+  hideLoading();
+  showToast('現在の集金モードに戻りました');
 }
 
 function histMove(dir) {
@@ -1385,25 +1376,36 @@ function histMove(dir) {
   if (histViewMonth>11){histViewMonth=0;histViewYear++;}
   renderBuhiHistory();
 }
+
 function renderBuhiHistory() {
   const label = histViewYear+'年'+(histViewMonth+1)+'月';
   document.getElementById('hist-month-label').textContent = label;
   const snap = monthlySnapshots.find(s=>s.year===histViewYear&&s.month===histViewMonth);
   const listEl = document.getElementById('buhi-history-list');
   const noEl = document.getElementById('buhi-no-history');
+  
   if (!snap) { listEl.innerHTML=''; noEl.style.display='block'; return; }
   noEl.style.display='none';
+  
   const paid = snap.members.filter(m=>m.paid).length;
   const total = snap.members.length;
   const pct = total ? Math.round(paid/total*100) : 0;
+  
   listEl.innerHTML = `
-    <div class="month-hist-card" onclick="toggleHistDetail(this)">
+    <div class="month-hist-card">
       <div class="month-hist-header">
         <div class="month-hist-title">${snap.label}</div>
         <div class="month-hist-pct">${paid}/${total}人 ${pct}%</div>
       </div>
       <div class="month-hist-bar-wrap"><div class="month-hist-bar" style="width:${pct}%"></div></div>
-      <div class="month-hist-sub">タップして詳細を表示</div>
+      
+      <!-- ★再編集ボタン（管理者のみ）★ -->
+      ${isAdmin() ? `
+      <div style="margin-top:12px; display:flex; gap:8px;">
+        <button class="blue-btn" style="padding:10px; font-size:13px; margin:0;" onclick="this.parentElement.nextElementSibling.classList.toggle('open')">内訳を見る</button>
+        <button class="green-btn" style="padding:10px; font-size:13px; margin:0; background:var(--amber);" onclick="enterEditMode(${snap.year}, ${snap.month})">📝 この月を再編集する</button>
+      </div>` : `<div class="month-hist-sub" onclick="this.nextElementSibling.classList.toggle('open')">タップして内訳を表示</div>`}
+      
       <div class="month-hist-detail">
         ${snap.members.map(m=>`
           <div class="mhd-row">
@@ -1413,11 +1415,6 @@ function renderBuhiHistory() {
           </div>`).join('')}
       </div>
     </div>`;
-}
-function toggleHistDetail(card) {
-  card.querySelector('.month-hist-detail').classList.toggle('open');
-  card.querySelector('.month-hist-sub').textContent =
-    card.querySelector('.month-hist-detail').classList.contains('open') ? '▲ 閉じる' : 'タップして詳細を表示';
 }
 
 // ══════════════════════════════════════════════════════
@@ -1480,7 +1477,6 @@ function renderEventList() {
         <div class="event-card-pct" id="ev-pct-${ev.id}">読み込み中...</div>
       </div>`;
   }).join('');
-  // load payment status for each event
   eventCollections.forEach(ev => loadEventProgress(ev.id));
 }
 
@@ -1507,7 +1503,6 @@ async function createEventCollection() {
     const rows = await dbInsert('event_collections',{title,amount,deadline,description,archived:false}, accessToken);
     if (rows&&rows[0]) {
       eventCollections.unshift(rows[0]);
-      // create payment rows for all members
       if (buhi.length) {
         await dbInsert('event_payments', buhi.map(m=>({collection_id:rows[0].id,member_id:m.id,paid:false})), accessToken);
       }
@@ -1579,7 +1574,6 @@ async function archiveCurrentEvent() {
 // ══════════════════════════════════════════════════════
 // 楽器修理
 // ══════════════════════════════════════════════════════
-const chkState2={chk1:false,chk2:false};
 function toggleChecklist() {
   const p=document.getElementById('checklist-panel');
   const btn=document.getElementById('checklist-toggle-btn');
@@ -1588,9 +1582,9 @@ function toggleChecklist() {
   btn.textContent='✓ 領収書チェックシート '+(open?'▼':'▲');
 }
 function toggleCheck(id) {
-  chkState2[id]=!chkState2[id];
-  document.getElementById(id).classList.toggle('checked',chkState2[id]);
-  document.getElementById('checklist-done').style.display=(chkState2.chk1&&chkState2.chk2)?'block':'none';
+  chkState[id]=!chkState[id];
+  document.getElementById(id).classList.toggle('checked',chkState[id]);
+  document.getElementById('checklist-done').style.display=(chkState.chk1&&chkState.chk2)?'block':'none';
 }
 function onRepairUpload(input) {
   if (input.files[0]) {
@@ -1614,7 +1608,6 @@ async function submitRepair() {
 }
 
 function renderRepairAdmin() {
-  // admin only screen
   document.getElementById('repair-admin-btn').style.display = isAdmin() ? 'block' : 'none';
   const total=repairHistory.reduce((s,r)=>s+r.amount,0);
   const pending=repairHistory.filter(r=>r.status==='pending').length;
@@ -1710,7 +1703,7 @@ function updateExtraTotal() {
   document.getElementById('extra-grand-total').textContent='¥'+total.toLocaleString('ja-JP');
 }
 function renderExtraPlayers() {
-  document.getElementById('extra-add-btn').style.display = 'inline-block'; // ゲストも追加可能
+  document.getElementById('extra-add-btn').style.display = 'inline-block';
   const list=document.getElementById('extra-player-list');
   if (!extraPlayers.length) {
     list.innerHTML='<div style="text-align:center;color:var(--text3);padding:24px 0;font-size:14px;">まだプレーヤーが追加されていません</div>';
@@ -1758,7 +1751,7 @@ function renderExtraPlayers() {
         ${p.receipt_name?`<div class="receipt-status-ok">✓ ${p.receipt_name}</div>`:`<div class="receipt-status-none">未アップロード</div>`}
         <div style="display:flex;gap:8px;">
           ${isAdmin()?`<button class="upload-mini" onclick="uploadReceiptForPlayer(${p.id})">${p.receipt_name?'変更':'アップロード'}</button>
-          <button class="upload-mini" style="color:var(--red);border-color:var(--red);" onclick="removePlayer(${p.id})">削除</button>`:''}
+          <button class="upload-mini" style="color:var(--amber);border-color:var(--amber);" onclick="archivePlayer(${p.id})">アーカイブ</button>`:''}
         </div>
       </div>
     </div>`).join('');
@@ -1815,13 +1808,13 @@ function uploadReceiptForPlayer(id) {
   input.click();
 }
 
-async function removePlayer(id) {
-  showConfirm('このプレーヤーを削除しますか？', async()=>{
+async function archivePlayer(id) {
+  showConfirm('このプレーヤーをアーカイブしますか？\n（一覧から非表示になりますがデータは残ります）', async()=>{
     try {
-      await dbDelete('extra_players',`id=eq.${id}`, accessToken);
+      await dbUpdate('extra_players',{archived:true},`id=eq.${id}`, accessToken);
       extraPlayers=extraPlayers.filter(x=>x.id!==id);
       renderExtraPlayers();
-    } catch(e) { showToast('削除失敗: '+e.message,true); }
+    } catch(e) { showToast('アーカイブ失敗: '+e.message,true); }
   });
 }
 
@@ -1844,7 +1837,7 @@ async function addPlayer() {
   const manual_note=document.getElementById('ap-manual-note').value.trim()||null;
   if (!name) { showToast('名前を入力してください'); return; }
   try {
-    const rows=await dbInsert('extra_players',{name,part:part||'未設定',fee,visits:0,manual_fee,manual_note,receipt_name:apReceiptFile?apReceiptFile.name:null}, accessToken);
+    const rows=await dbInsert('extra_players',{name,part:part||'未設定',fee,visits:0,manual_fee,manual_note,receipt_name:apReceiptFile?apReceiptFile.name:null, archived:false}, accessToken);
     if (rows&&rows[0]) extraPlayers.push(rows[0]);
     closeAddPlayer(); renderExtraPlayers();
     await sendLineNotify(`🚗【エキストラ交通費登録】\n名前: ${name}\nパート: ${part||'未設定'}\n片道: ¥${fee.toLocaleString('ja-JP')}`);
@@ -1926,15 +1919,12 @@ function openDashboard() {
   const autoExpense = repairTotal + otherTotal + extraTotal;
   const finalExpense = (dashboardData?.expense_manual) || autoExpense;
 
-  // ゲストは支出合計のみ表示
   if (!isAdmin()) {
     document.getElementById('dash-expense').textContent = '¥'+finalExpense.toLocaleString('ja-JP');
-    // 管理者専用エリアを非表示
     document.querySelectorAll('.dash-admin-only').forEach(el => el.style.display='none');
     document.getElementById('dashboard-modal').classList.add('open');
     return;
   }
-  // 管理者は全表示
   document.querySelectorAll('.dash-admin-only').forEach(el => el.style.display='block');
   document.getElementById('dash-balance').textContent = '¥'+(dashboardData?.balance||0).toLocaleString('ja-JP');
   document.getElementById('dash-income').textContent = '¥'+(dashboardData?.income_manual||0).toLocaleString('ja-JP');
@@ -1953,7 +1943,7 @@ async function saveDashField(field, inputId) {
   try {
     await dbUpdate('finance_dashboard',{[field]:val,updated_at:new Date().toISOString()},`id=eq.${dashboardData.id}`, accessToken);
     dashboardData[field]=val;
-    openDashboard(); // re-render
+    openDashboard(); 
     showToast('更新しました');
   } catch(e) { showToast('更新失敗: '+e.message,true); }
 }
@@ -1971,18 +1961,6 @@ async function saveDashNote() {
 // ══════════════════════════════════════════════════════
 // 援助金管理
 // ══════════════════════════════════════════════════════
-async function loadEnjoData() {
-  // settingsからenjo_limitを取得
-  try {
-    const rows = await dbGet('settings', 'key=eq.enjo_limit', accessToken);
-    enjoLimit = rows[0] ? parseInt(rows[0].value) || 0 : 0;
-  } catch(e) { enjoLimit = 0; }
-  // enjo_requestsテーブルがなければ空配列
-  try {
-    enjoRequests = await dbGet('enjo_requests', 'order=created_at.desc', accessToken);
-  } catch(e) { enjoRequests = []; }
-}
-
 function calcEnjoRemaining() {
   const used = enjoRequests.reduce((s, r) => s + (r.amount || 0), 0);
   const remain = enjoLimit - used;
@@ -2097,12 +2075,11 @@ function showToast(msg, isError=false) {
 }
 
 // ══════════════════════════════════════════════════════
-// BOOT: check existing session
+// BOOT
 // ══════════════════════════════════════════════════════
 (async()=>{
   showLoading('起動中...');
 
-  // 保存済みトークンがあれば管理者セッション復元を試みる
   const token = localStorage.getItem('sb_token');
   if (token) {
     try {
@@ -2123,7 +2100,6 @@ function showToast(msg, isError=false) {
           if (user.email === 'groovy2026blue@gmail.com') currentProfile.role = 'admin';
         }
       } else {
-        // トークン期限切れ → ゲストモードで続行
         localStorage.removeItem('sb_token');
       }
     } catch(e) {
@@ -2131,7 +2107,6 @@ function showToast(msg, isError=false) {
     }
   }
 
-  // トークンなし or 失敗 → ゲストモードで起動（currentUser=null のまま）
   showLoading('データ読み込み中...');
   await init();
 })();
