@@ -1,7 +1,7 @@
 <!--
   ╔══════════════════════════════════════════════════════╗
-  ║  Groovy 会計 - 最終アップデート版                    ║
-  ║  (その他出費アーカイブ機能追加・表示崩れ修正済)      ║
+  ║  Groovy 会計 - 完全版（一切の省略なし）              ║
+  ║  (過去月再編集・その他出費アーカイブ・表示崩れ修正)  ║
   ╚══════════════════════════════════════════════════════╝
 
   -- ① 援助金テーブル作成
@@ -217,13 +217,16 @@ select.form-input{-webkit-appearance:none;appearance:none;}
 .badge.pending{background:var(--amber);color:#000;}
 .badge.approved{background:var(--green);color:#000;}
 .badge.rejected{background:var(--red);color:#fff;}
+.edit-badge{background:var(--amber);color:#000;font-size:11px;padding:2px 8px;border-radius:4px;margin-left:8px;font-weight:700;vertical-align:middle;}
 
-/* ── History rows ── */
+/* ★ ピラミッド崩れ対策のHistory rows（完全版） ★ */
 .history-row{background:var(--bg3);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:8px;}
-.history-top{display:flex;justify-content:space-between;align-items:flex-start;}
-.history-name{font-size:16px;font-weight:600;}
+.history-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.history-info{flex:1; min-width:0;}
+.history-name{font-size:16px;font-weight:600;word-break:break-word;}
+.history-sub{font-size:13px;color:var(--text2);margin-top:3px;word-break:break-word;}
+.history-amount-wrap{flex-shrink:0; text-align:right;}
 .history-amount{font-size:18px;font-weight:700;color:var(--accent);}
-.history-sub{font-size:13px;color:var(--text2);margin:3px 0;}
 .history-date{font-size:12px;color:var(--text3);margin-top:6px;}
 
 /* ── Summary ── */
@@ -282,7 +285,6 @@ select.form-input{-webkit-appearance:none;appearance:none;}
 .mhd-row:last-child{border-bottom:none;}
 .mhd-paid{color:var(--green);font-size:13px;font-weight:700;}
 .mhd-unpaid{color:var(--red);font-size:13px;font-weight:700;}
-.edit-badge{background:var(--amber);color:#000;font-size:11px;padding:2px 8px;border-radius:4px;margin-left:8px;font-weight:700;vertical-align:middle;}
 
 /* ── Modals ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;
@@ -401,13 +403,11 @@ select.form-input{-webkit-appearance:none;appearance:none;}
         <div class="user-bar-name" id="home-user-name">ゲスト</div>
         <div style="margin-top:3px;"><span class="user-bar-role" id="home-user-role">👁 閲覧モード</span></div>
       </div>
-      <!-- ゲスト時: 管理者ログインボタン -->
       <button id="admin-login-btn" onclick="openAdminLogin()"
         style="font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--accent2);
                color:var(--accent2);background:transparent;cursor:pointer;white-space:nowrap;">
         🔐 管理者ログイン
       </button>
-      <!-- ログイン時: ログアウトボタン -->
       <button id="logout-btn" class="logout-btn" onclick="doLogout()" style="display:none;">ログアウト</button>
     </div>
     <button class="menu-btn" onclick="go('buhi')"><span class="icon">💰</span> 部費集金</button>
@@ -488,7 +488,7 @@ select.form-input{-webkit-appearance:none;appearance:none;}
       </div>
       <div id="buhi-list"></div>
       <div id="buhi-admin-actions" style="display:none;">
-        <button class="save-month-btn" onclick="saveMonthSnapshot()" id="buhi-save-btn">この月の状況を保存する</button>
+        <button class="save-month-btn" onclick="saveMonthSnapshot()" id="buhi-save-btn">今月の状況を保存する</button>
       </div>
     </div>
     <!-- メンバー追加（admin only） -->
@@ -721,7 +721,7 @@ select.form-input{-webkit-appearance:none;appearance:none;}
     </div>
   </div>
 
-  <!-- その他出費 -->
+  <!-- その他出費（★月別アーカイブ対応版） -->
   <div id="screen-other" class="screen">
     <div class="page-header">
       <button class="back-btn" onclick="go('home')">← ホームに戻る</button>
@@ -741,7 +741,7 @@ select.form-input{-webkit-appearance:none;appearance:none;}
       <button class="green-btn" style="pointer-events:none;">✓ 申請が完了しました！</button>
     </div>
     
-    <!-- ★月別ナビゲーション付きのアーカイブ履歴エリアに大改修！ -->
+    <!-- アーカイブ履歴エリア -->
     <div class="card" style="margin-top:4px;">
       <div class="month-select-row" style="margin-bottom:12px;">
         <button class="month-nav" onclick="otherHistMove(-1)">←</button>
@@ -1079,7 +1079,7 @@ async function doLogout() {
 }
 
 // ══════════════════════════════════════════════════════
-// STATE & RE-EDIT & ★ OTHER EXPENSE ARCHIVE FEATURES
+// STATE & ★ RE-EDIT & OTHER ARCHIVE FEATURES
 // ══════════════════════════════════════════════════════
 let buhi = [];
 let repairHistory = [];
@@ -1097,11 +1097,11 @@ let apReceiptFile = null;
 const NOW_YEAR = new Date().getFullYear();
 const NOW_MONTH = new Date().getMonth();
 
-// ★部費集金・再編集用
+// ★過去月再編集用
 let activeYear = NOW_YEAR;
 let activeMonth = NOW_MONTH;
 
-// ★その他出費・月別アーカイブ用
+// ★その他出費アーカイブ用
 let otherHistYear = NOW_YEAR;
 let otherHistMonth = NOW_MONTH;
 
@@ -1151,7 +1151,7 @@ function go(id) {
 // ══════════════════════════════════════════════════════
 async function init() {
   const loads = [
-    ['members', () => loadMembers(activeYear, activeMonth)],
+    ['members', () => loadMembers(activeYear, activeMonth)], // ★ アクティブな年月でロード
     ['repair', loadRepairHistory],
     ['extra', loadExtraPlayers],
     ['other', loadOtherHistory],
@@ -1309,8 +1309,7 @@ async function addBuhiMember() {
 }
 
 async function removeBuhiMember(i) {
-  showConfirm(buhi[i].name+' を退部(アーカイブ)にしますか？
-過去の集金履歴からは消えません。', async () => {
+  showConfirm(buhi[i].name+' を退部(アーカイブ)にしますか？\n過去の集金履歴からは消えません。', async () => {
     try {
       await dbUpdate('members', {retired: true}, `id=eq.${buhi[i].id}`, accessToken);
       buhi.splice(i,1);
@@ -1341,8 +1340,7 @@ async function saveMonthSnapshot() {
   
   const msg = isEditingPast 
     ? `${label}の修正内容を保存しますか？`
-    : `${label}の集金は終わりましたか？
-保存すると全員の支払い状況がリセットされ、月別履歴に記録されます。`;
+    : `${label}の集金は終わりましたか？\n保存すると全員の支払い状況がリセットされ、月別履歴に記録されます。`;
 
   showConfirm(msg, async () => {
     try {
@@ -1571,8 +1569,7 @@ async function toggleEventPayment(evId, memberId, rowId, idx) {
 
 async function archiveCurrentEvent() {
   if (!currentEventId) return;
-  showConfirm('この集金項目をアーカイブしますか？
-一覧から非表示になります。', async () => {
+  showConfirm('この集金項目をアーカイブしますか？\n一覧から非表示になります。', async () => {
     try {
       await dbUpdate('event_collections',{archived:true},`id=eq.${currentEventId}`, accessToken);
       eventCollections = eventCollections.filter(e=>e.id!==currentEventId);
@@ -1612,16 +1609,12 @@ async function submitRepair() {
     if (rows&&rows[0]) repairHistory.unshift(rows[0]);
     document.getElementById('repair-name').value='';
     document.getElementById('repair-amount').value='';
-    await sendLineNotify(`🎺【楽器修理申請】
-名前: ${name}
-パート: ${document.getElementById('repair-part').value}
-金額: ¥${amount.toLocaleString('ja-JP')}`);
+    await sendLineNotify(`🎺【楽器修理申請】\n名前: ${name}\nパート: ${document.getElementById('repair-part').value}\n金額: ¥${amount.toLocaleString('ja-JP')}`);
     showToast('申請が完了しました！');
     go('repair-admin');
   } catch(e) { showToast('申請失敗: '+e.message,true); }
 }
 
-// ★文字折り返し崩れを防ぐため flex:1 や min-width:0 を徹底適用
 function renderRepairAdmin() {
   document.getElementById('repair-admin-btn').style.display = isAdmin() ? 'block' : 'none';
   const total=repairHistory.reduce((s,r)=>s+r.amount,0);
@@ -1631,16 +1624,16 @@ function renderRepairAdmin() {
   document.getElementById('repair-history-list').innerHTML=repairHistory.map(r=>`
     <div class="history-row">
       <div class="history-top">
-        <div style="flex:1; min-width:0; margin-right:12px;">
-          <div class="history-name" style="word-break:break-word;">${r.name}</div>
-          <div class="history-sub" style="word-break:break-word;">${r.part}</div>
+        <div class="history-info">
+          <div class="history-name">${r.name}</div>
+          <div class="history-sub">${r.part}</div>
         </div>
-        <div style="flex-shrink:0; text-align:right;">
+        <div class="history-amount-wrap">
           <div class="history-amount">¥${r.amount.toLocaleString('ja-JP')}</div>
           <div style="margin-top:4px;"><span class="badge ${r.status==='pending'?'pending':r.status==='approved'?'approved':'rejected'}">${r.status==='pending'?'保留中':r.status==='approved'?'承認済み':'却下'}</span></div>
         </div>
       </div>
-      <div class="history-date" style="margin-top:6px;">申請日: ${r.date||''}</div>
+      <div class="history-date">申請日: ${r.date||''}</div>
       ${isAdmin()&&r.status==='pending'?`
         <div class="admin-action-row" style="margin-top:10px;">
           <button class="action-btn action-approve" onclick="reviewRepair(${r.id},'approved')">✓ 承認</button>
@@ -1655,10 +1648,7 @@ async function reviewRepair(id, status) {
     if (r) r.status=status;
     renderRepairAdmin();
     const label=status==='approved'?'承認':'却下';
-    if (r) await sendLineNotify(`✅【修理申請${label}】
-名前: ${r.name} (${r.part})
-金額: ¥${r.amount.toLocaleString('ja-JP')}
-ステータス: ${label}`);
+    if (r) await sendLineNotify(`✅【修理申請${label}】\n名前: ${r.name} (${r.part})\n金額: ¥${r.amount.toLocaleString('ja-JP')}\nステータス: ${label}`);
     showToast(label+'しました');
   } catch(e) { showToast('更新失敗: '+e.message,true); }
 }
@@ -1667,16 +1657,16 @@ function renderRepairUsage() {
   document.getElementById('repair-usage-list').innerHTML=repairHistory.map(r=>`
     <div class="history-row">
       <div class="history-top">
-        <div style="flex:1; min-width:0; margin-right:12px;">
-          <div class="history-name" style="word-break:break-word;">${r.name}</div>
-          <div class="history-sub" style="word-break:break-word;">${r.part}</div>
+        <div class="history-info">
+          <div class="history-name">${r.name}</div>
+          <div class="history-sub">${r.part}</div>
         </div>
-        <div style="flex-shrink:0; text-align:right;">
+        <div class="history-amount-wrap">
           <div class="history-amount">¥${r.amount.toLocaleString('ja-JP')}</div>
           <div style="margin-top:4px;"><span class="badge ${r.status==='pending'?'pending':r.status==='approved'?'approved':'rejected'}">${r.status==='pending'?'保留中':r.status==='approved'?'承認済み':'却下'}</span></div>
         </div>
       </div>
-      <div class="history-date" style="margin-top:6px;">申請日: ${r.date||''}</div>
+      <div class="history-date">申請日: ${r.date||''}</div>
     </div>`).join('');
 }
 
@@ -1695,8 +1685,7 @@ function getAiEstimate() {
       'トロンボーン':'¥8,000〜¥30,000（スライド研磨：¥8,000〜、バルブ修理：¥15,000〜）',
       'トランペット':'¥5,000〜¥25,000（ピストン修理：¥8,000〜、洗浄調整：¥5,000〜）',
       'リズム':'¥3,000〜¥20,000（ヘッド交換：¥3,000〜、メンテナンス：¥8,000〜）'};
-    t.textContent=section+' / '+content+'
-推定費用: '+(est[section]||'¥5,000〜¥30,000');
+    t.textContent=section+' / '+content+'\n推定費用: '+(est[section]||'¥5,000〜¥30,000');
   },1200);
 }
 
@@ -1790,9 +1779,7 @@ async function incrementVisit(id) {
   try {
     await dbUpdate('extra_players',{visits:p.visits},`id=eq.${id}`, accessToken);
     showToast(p.name+' '+p.visits+'回目！');
-    await sendLineNotify(`🚗【出席カウント更新】
-${p.name}（${p.part}）
-出席回数: ${p.visits}回`);
+    await sendLineNotify(`🚗【出席カウント更新】\n${p.name}（${p.part}）\n出席回数: ${p.visits}回`);
   } catch(e) { p.visits--; renderExtraPlayers(); showToast('更新失敗: '+e.message,true); }
 }
 
@@ -1803,9 +1790,7 @@ async function decrementVisit(id) {
   try {
     await dbUpdate('extra_players',{visits:p.visits},`id=eq.${id}`, accessToken);
     showToast(p.name+' '+p.visits+'回に修正しました');
-    await sendLineNotify(`🚗【出席カウント修正】
-${p.name}（${p.part}）
-出席回数: ${p.visits}回`);
+    await sendLineNotify(`🚗【出席カウント修正】\n${p.name}（${p.part}）\n出席回数: ${p.visits}回`);
   } catch(e) { p.visits++; renderExtraPlayers(); showToast('更新失敗: '+e.message,true); }
 }
 
@@ -1838,8 +1823,7 @@ function uploadReceiptForPlayer(id) {
 }
 
 async function archivePlayer(id) {
-  showConfirm('このプレーヤーをアーカイブしますか？
-（一覧から非表示になりますがデータは残ります）', async()=>{
+  showConfirm('このプレーヤーをアーカイブしますか？\n（一覧から非表示になりますがデータは残ります）', async()=>{
     try {
       await dbUpdate('extra_players',{archived:true},`id=eq.${id}`, accessToken);
       extraPlayers=extraPlayers.filter(x=>x.id!==id);
@@ -1870,16 +1854,13 @@ async function addPlayer() {
     const rows=await dbInsert('extra_players',{name,part:part||'未設定',fee,visits:0,manual_fee,manual_note,receipt_name:apReceiptFile?apReceiptFile.name:null, archived:false}, accessToken);
     if (rows&&rows[0]) extraPlayers.push(rows[0]);
     closeAddPlayer(); renderExtraPlayers();
-    await sendLineNotify(`🚗【エキストラ交通費登録】
-名前: ${name}
-パート: ${part||'未設定'}
-片道: ¥${fee.toLocaleString('ja-JP')}`);
+    await sendLineNotify(`🚗【エキストラ交通費登録】\n名前: ${name}\nパート: ${part||'未設定'}\n片道: ¥${fee.toLocaleString('ja-JP')}`);
     showToast(name+' を追加しました！');
   } catch(e) { showToast('追加失敗: '+e.message,true); }
 }
 
 // ══════════════════════════════════════════════════════
-// ★大改修：その他出費（月別アーカイブ＆表示崩れ完全解消）
+// その他出費（★月別アーカイブ化＆表示崩れ修正）
 // ══════════════════════════════════════════════════════
 function otherHistMove(dir) {
   otherHistMonth += dir;
@@ -1893,7 +1874,6 @@ function renderOtherHistory() {
   const labelEl = document.getElementById('other-month-label');
   if (labelEl) labelEl.textContent = label;
 
-  // 該当年月に合致するデータを抽出（h.date は "YYYY-MM-DD" 形式）
   const prefix = otherHistYear + '-' + String(otherHistMonth + 1).padStart(2, '0');
   const filtered = otherHistory.filter(h => (h.date || '').startsWith(prefix));
 
@@ -1902,20 +1882,19 @@ function renderOtherHistory() {
     list.innerHTML = '<div style="text-align:center;color:var(--text3);padding:32px 0;font-size:14px;">この月の出費申請・アーカイブ履歴はありません</div>';
     document.getElementById('other-total').textContent = '¥0';
   } else {
-    // ★フレックス親コンテナ内の flex:1 / min-width:0 による文字潰れ対策を徹底適用
     list.innerHTML = filtered.map(h => `
-      <div class="history-row" style="margin-bottom:8px;">
+      <div class="history-row">
         <div class="history-top">
-          <div style="flex:1; min-width:0; margin-right:12px;">
-            <div class="history-name" style="word-break:break-word;">${h.name}</div>
-            <div class="history-sub" style="word-break:break-word;">${h.content}</div>
+          <div class="history-info">
+            <div class="history-name">${h.name}</div>
+            <div class="history-sub">${h.content}</div>
           </div>
-          <div style="flex-shrink:0; text-align:right;">
+          <div class="history-amount-wrap">
             <div class="history-amount">¥${h.amount.toLocaleString('ja-JP')}</div>
             <div style="margin-top:4px;"><span class="badge ${h.status==='pending'?'pending':h.status==='approved'?'approved':'rejected'}">${h.status==='pending'?'保留中':h.status==='approved'?'承認済み':'却下'}</span></div>
           </div>
         </div>
-        <div class="history-date" style="margin-top:6px;">申請日: ${h.date||''}</div>
+        <div class="history-date">申請日: ${h.date||''}</div>
         ${isAdmin() && h.status === 'pending' ? `
           <div class="admin-action-row" style="margin-top:10px;">
             <button class="action-btn action-approve" onclick="reviewOther(${h.id},'approved')">✓ 承認</button>
@@ -1923,7 +1902,6 @@ function renderOtherHistory() {
           </div>` : ''}
       </div>`).join('');
 
-    // 表示中の月における「承認済み」の支出合計を算出（サークル会計として正確にするため）
     const approvedTotal = filtered.filter(h => h.status === 'approved').reduce((s, h) => s + h.amount, 0);
     document.getElementById('other-total').textContent = '¥' + approvedTotal.toLocaleString('ja-JP');
   }
@@ -1957,11 +1935,9 @@ async function submitOther() {
   const amount=parseInt(document.getElementById('other-amount').value)||0;
   if (!name||!content||!amount) { showToast('すべての項目を入力してください'); return; }
   try {
-    // 申請時に現在日付を付与
     const rows=await dbInsert('other_expenses',{name,content,amount,status:'pending',date:new Date().toISOString().slice(0,10)}, accessToken);
     if (rows&&rows[0]) {
       otherHistory.unshift(rows[0]);
-      // 申請が行われたら、自動的に「その月」のアーカイブ一覧画面に切り替えて申請を即座に表示
       const d = new Date(rows[0].date || new Date());
       otherHistYear = d.getFullYear();
       otherHistMonth = d.getMonth();
@@ -1969,10 +1945,7 @@ async function submitOther() {
     ['other-name','other-content','other-amount'].forEach(id=>document.getElementById(id).value='');
     const s=document.getElementById('other-success');
     s.style.display='block'; setTimeout(()=>s.style.display='none',2500);
-    await sendLineNotify(`📝【その他出費申請】
-名前: ${name}
-内容: ${content}
-金額: ¥${amount.toLocaleString('ja-JP')}`);
+    await sendLineNotify(`📝【その他出費申請】\n名前: ${name}\n内容: ${content}\n金額: ¥${amount.toLocaleString('ja-JP')}`);
     renderOtherHistory(); showToast('申請しました！');
   } catch(e) { showToast('申請失敗: '+e.message,true); }
 }
@@ -2096,7 +2069,6 @@ async function deleteEnjo(id) {
   });
 }
 
-// ★ここにもフレックスコンテナ内の flex:1 / min-width:0 による文字潰れ対策を徹底適用
 function renderEnjoList() {
   const list = document.getElementById('enjo-list');
   if (!enjoRequests.length) {
@@ -2105,15 +2077,15 @@ function renderEnjoList() {
   }
   list.innerHTML = enjoRequests.map(r => `
     <div class="card" style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div style="flex:1; min-width:0; margin-right:12px;">
-          <div style="font-size:15px;font-weight:700;word-break:break-word;">${r.title}</div>
-          <div style="font-size:13px;color:var(--text2);margin-top:3px;">申請額: ¥${(r.amount||0).toLocaleString('ja-JP')}</div>
+      <div class="history-top">
+        <div class="history-info">
+          <div class="history-name">${r.title}</div>
+          <div class="history-sub">申請額: ¥${(r.amount||0).toLocaleString('ja-JP')}</div>
           ${r.refund_date ? `<div style="font-size:12px;color:var(--accent);margin-top:2px;">📅 還付予定: ${r.refund_date} ¥${(r.refund_amount||0).toLocaleString('ja-JP')}</div>` : ''}
           <div style="font-size:12px;margin-top:4px;">${r.has_receipt ? '<span style="color:var(--green);">✓ 領収書あり</span>' : '<span style="color:var(--amber);">⚠ 領収書未確認</span>'}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:3px;">${r.date || ''}</div>
+          <div class="history-date">${r.date || ''}</div>
         </div>
-        <button class="upload-mini" style="color:var(--red);border-color:var(--red);flex-shrink:0;" onclick="deleteEnjo(${r.id})">削除</button>
+        <button class="upload-mini history-amount-wrap" style="color:var(--red);border-color:var(--red);" onclick="deleteEnjo(${r.id})">削除</button>
       </div>
     </div>`).join('');
 }
